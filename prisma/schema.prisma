@@ -1,0 +1,175 @@
+// Real Makoya Agency — Retail Intelligence & Compliance Platform
+// Database schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────
+// USERS & ACCESS CONTROL
+// ──────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN  // Full platform control, manages all users & data
+  ADMIN        // Real Makoya agency management: manages field agents, stores, clients
+  FIELD_AGENT  // Field capture only: can create/edit stores & assessments
+  CLIENT       // FMCG company: read-only access to professional reports
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  role          Role
+  active        Boolean  @default(true)
+
+  // Only meaningful for CLIENT role: which FMCG company this login represents
+  companyName   String?
+
+  // CLIENT-role scoping: if allBrandsAccess is true, the client sees all data.
+  // Otherwise, they only see product lines / stores tied to their brandAccess list.
+  allBrandsAccess Boolean       @default(true)
+  brandAccess     BrandAccess[]
+
+  createdStores      Store[]      @relation("StoreCreatedBy")
+  assessments        Assessment[] @relation("AssessmentAgent")
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  invitedById        String?
+}
+
+model BrandAccess {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandName String
+
+  @@unique([userId, brandName])
+}
+
+// ──────────────────────────────────────────────
+// STORE — Ownership & Registration
+// ──────────────────────────────────────────────
+
+enum RegistrationStatus {
+  REGISTERED
+  PENDING
+  UNREGISTERED
+  UNKNOWN
+}
+
+model Store {
+  id      String @id @default(cuid())
+  name    String
+  tradingAs String?
+
+  // Location
+  address  String
+  town     String
+  province String
+  latitude  Float?
+  longitude Float?
+
+  // Ownership & registration
+  ownerName                  String
+  ownerContactNumber         String?
+  ownerIdOrCompanyRegNumber  String?
+  municipalRegistrationStatus RegistrationStatus @default(UNKNOWN)
+  municipalRegistrationNumber String?
+  registrationNotes          String?
+
+  createdById String
+  createdBy   User   @relation("StoreCreatedBy", fields: [createdById], references: [id])
+
+  assessments Assessment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ──────────────────────────────────────────────
+// ASSESSMENT — one field-capture visit, holding the other 4 data domains
+// ──────────────────────────────────────────────
+
+enum SourceType {
+  FORMAL_WHOLESALER
+  INFORMAL_BULK_BUYER
+  UNVERIFIED_SUPPLIER
+  MIXED
+}
+
+enum CounterfeitRisk {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  CONFIRMED_COUNTERFEIT
+}
+
+enum AssessmentStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  FLAGGED
+}
+
+model Assessment {
+  id        String   @id @default(cuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  agentId   String
+  agent     User     @relation("AssessmentAgent", fields: [agentId], references: [id])
+
+  visitDate DateTime @default(now())
+  status    AssessmentStatus @default(SUBMITTED)
+
+  // ── Top-selling product lines ──
+  productLines ProductLine[]
+
+  // ── Trade & distribution routes ──
+  sourceType         SourceType
+  supplierName       String?
+  supplierLocation   String?
+  distributionNotes  String?
+
+  // ── Compliance & CoA verification ──
+  hasValidCoA              Boolean  @default(false)
+  coaNotes                 String?
+  hasHealthPermit          Boolean  @default(false)
+  healthPermitNumber       String?
+  healthPermitExpiry       DateTime?
+  brandAuthenticityVerified Boolean @default(false)
+  complianceNotes          String?
+
+  // ── Counterfeit screening ──
+  counterfeitRisk        CounterfeitRisk @default(NONE)
+  packagingIssueFlag     Boolean @default(false)
+  batchCodeIssueFlag     Boolean @default(false)
+  pricingAnomalyFlag     Boolean @default(false)
+  counterfeitNotes       String?
+  photoUrls              String[] @default([])
+
+  internalNotes String? // visible to agency staff only, never shown to CLIENT role
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProductLine {
+  id                    String @id @default(cuid())
+  assessmentId          String
+  assessment            Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  category              String   // e.g. "Beverages", "Snacks", "Personal Care"
+  brand                 String   // e.g. "Coca-Cola", "Omo", "Lay's"
+  rank                  Int?     // 1 = top seller at this store
+  estimatedMonthlyUnits Int?
+  notes                 String?
+}
