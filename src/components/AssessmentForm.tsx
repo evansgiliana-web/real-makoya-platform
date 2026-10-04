@@ -1,17 +1,93 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
-type ProductLine = { category: string; brand: string; rank: string; estimatedMonthlyUnits: string; notes: string };
+type ImageUploaderProps = {
+  label: string;
+  urls: string[];
+  onChange: (urls: string[]) => void;
+};
 
-const emptyLine: ProductLine = { category: "", brand: "", rank: "", estimatedMonthlyUnits: "", notes: "" };
+function ImageUploader({ label, urls, onChange }: ImageUploaderProps) {
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFiles(e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    setUploading(true);
+
+    try {
+      const nextUrls = await Promise.all(
+        files.map(
+          (file) =>
+            new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result || ""));
+              reader.onerror = () => reject(new Error("Could not read file."));
+              reader.readAsDataURL(file);
+            }),
+        ),
+      );
+
+      onChange([...urls, ...nextUrls]);
+    } catch {
+      onChange(urls);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <label className="label">{label}</label>
+      <input type="file" accept="image/*" multiple onChange={handleFiles} className="input" />
+      {uploading && <p className="text-xs text-gray-500">Uploading…</p>}
+      {urls.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {urls.map((url, index) => (
+            <img
+              key={`${url}-${index}`}
+              src={url}
+              alt={`${label} ${index + 1}`}
+              className="h-20 w-20 rounded object-cover border"
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ProductLine = {
+  category: string;
+  brand: string;
+  rank: string;
+  estimatedMonthlyUnits: string;
+  estimatedUnitPriceZar: string;
+  notes: string;
+};
+
+const emptyLine: ProductLine = {
+  category: "",
+  brand: "",
+  rank: "",
+  estimatedMonthlyUnits: "",
+  estimatedUnitPriceZar: "",
+  notes: "",
+};
 
 export default function AssessmentForm({ storeId }: { storeId: string }) {
   const router = useRouter();
   const [lines, setLines] = useState<ProductLine[]>([{ ...emptyLine }]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [posPhotos, setPosPhotos] = useState<string[]>([]);
+  const [equipmentPhotos, setEquipmentPhotos] = useState<string[]>([]);
+  const [posInstalled, setPosInstalled] = useState(false);
+  const [scannerInstalled, setScannerInstalled] = useState(false);
 
   function updateLine(i: number, field: keyof ProductLine, value: string) {
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, [field]: value } : l)));
@@ -33,6 +109,7 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
           brand: l.brand,
           rank: l.rank ? Number(l.rank) : null,
           estimatedMonthlyUnits: l.estimatedMonthlyUnits ? Number(l.estimatedMonthlyUnits) : null,
+          estimatedUnitPriceZar: l.estimatedUnitPriceZar ? Number(l.estimatedUnitPriceZar) : null,
           notes: l.notes || undefined,
         })),
       sourceType: form.get("sourceType"),
@@ -53,6 +130,21 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
       batchCodeIssueFlag: form.get("batchCodeIssueFlag") === "on",
       pricingAnomalyFlag: form.get("pricingAnomalyFlag") === "on",
       counterfeitNotes: form.get("counterfeitNotes") || undefined,
+
+      packingShelvesCount: form.get("packingShelvesCount") ? Number(form.get("packingShelvesCount")) : undefined,
+      posInstalled,
+      posBrand: form.get("posBrand") || undefined,
+      posModel: form.get("posModel") || undefined,
+      posPhotoUrls: posPhotos,
+      internetConnectivity: form.get("internetConnectivity"),
+      scannerInstalled,
+      scannerDetails: form.get("scannerDetails") || undefined,
+      equipmentPhotoUrls: equipmentPhotos,
+
+      totalSkuCount: form.get("totalSkuCount") ? Number(form.get("totalSkuCount")) : undefined,
+      estimatedMonthlyTurnoverZar: form.get("estimatedMonthlyTurnoverZar")
+        ? Number(form.get("estimatedMonthlyTurnoverZar"))
+        : undefined,
 
       internalNotes: form.get("internalNotes") || undefined,
     };
@@ -87,29 +179,43 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
           <div key={i} className="grid grid-cols-12 gap-2 mb-3 items-start">
             <input
               placeholder="Category (e.g. Beverages)"
-              className="input col-span-3"
+              className="input col-span-2"
               value={line.category}
               onChange={(e) => updateLine(i, "category", e.target.value)}
             />
             <input
               placeholder="Brand"
-              className="input col-span-3"
+              className="input col-span-2"
               value={line.brand}
               onChange={(e) => updateLine(i, "brand", e.target.value)}
             />
             <input
               placeholder="Rank"
               type="number"
-              className="input col-span-2"
+              className="input col-span-1"
               value={line.rank}
               onChange={(e) => updateLine(i, "rank", e.target.value)}
             />
             <input
               placeholder="Est. monthly units"
               type="number"
-              className="input col-span-3"
+              className="input col-span-2"
               value={line.estimatedMonthlyUnits}
               onChange={(e) => updateLine(i, "estimatedMonthlyUnits", e.target.value)}
+            />
+            <input
+              placeholder="Avg price (R)"
+              type="number"
+              step="0.01"
+              className="input col-span-2"
+              value={line.estimatedUnitPriceZar}
+              onChange={(e) => updateLine(i, "estimatedUnitPriceZar", e.target.value)}
+            />
+            <input
+              placeholder="Notes"
+              className="input col-span-2"
+              value={line.notes}
+              onChange={(e) => updateLine(i, "notes", e.target.value)}
             />
             <button
               type="button"
@@ -231,6 +337,116 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
           <div className="col-span-2">
             <label className="label">Counterfeit Screening Notes</label>
             <textarea name="counterfeitNotes" rows={2} className="input" />
+          </div>
+        </div>
+      </section>
+
+      {/* Commercial metrics */}
+      <section className="card p-6">
+        <h2 className="font-semibold text-brand-900 mb-1">Commercial Metrics</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Estimate store scale for client dashboards — total SKUs on shelf and monthly
+          turnover (whole store, ZAR).
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Total SKUs / products on shelf</label>
+            <input
+              type="number"
+              name="totalSkuCount"
+              min={0}
+              className="input"
+              placeholder="e.g. 120"
+            />
+          </div>
+          <div>
+            <label className="label">Est. monthly store turnover (ZAR)</label>
+            <input
+              type="number"
+              name="estimatedMonthlyTurnoverZar"
+              min={0}
+              step="100"
+              className="input"
+              placeholder="e.g. 85000"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Store infrastructure & equipment */}
+      <section className="card p-6">
+        <h2 className="font-semibold text-brand-900 mb-1">Store Infrastructure & Equipment</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Capture what the store has to work with — shelving, point-of-sale technology,
+          scanners and connectivity.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Number of Packing Shelves</label>
+            <input type="number" name="packingShelvesCount" min={0} className="input" />
+          </div>
+          <div>
+            <label className="label">Internet Connectivity</label>
+            <select name="internetConnectivity" className="input" defaultValue="UNKNOWN">
+              <option value="NONE">None</option>
+              <option value="MOBILE_DATA">Mobile Data</option>
+              <option value="WIFI">Wi-Fi</option>
+              <option value="FIBER">Fiber</option>
+              <option value="UNKNOWN">Unknown / Not checked</option>
+            </select>
+          </div>
+
+          <div className="col-span-2 border-t border-gray-100 pt-4">
+            <label className="flex items-center gap-2 text-sm mb-3">
+              <input
+                type="checkbox"
+                checked={posInstalled}
+                onChange={(e) => setPosInstalled(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Point-of-sale (POS) system installed
+            </label>
+            {posInstalled && (
+              <div className="grid grid-cols-2 gap-4 pl-6">
+                <div>
+                  <label className="label">POS Brand</label>
+                  <input name="posBrand" className="input" placeholder="e.g. Yoco, iKhokha" />
+                </div>
+                <div>
+                  <label className="label">POS Model</label>
+                  <input name="posModel" className="input" />
+                </div>
+                <div className="col-span-2">
+                  <ImageUploader label="POS Photos" urls={posPhotos} onChange={setPosPhotos} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="col-span-2 border-t border-gray-100 pt-4">
+            <label className="flex items-center gap-2 text-sm mb-3">
+              <input
+                type="checkbox"
+                checked={scannerInstalled}
+                onChange={(e) => setScannerInstalled(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Barcode scanner present
+            </label>
+            {scannerInstalled && (
+              <div className="pl-6">
+                <label className="label">Scanner Details</label>
+                <input name="scannerDetails" className="input" placeholder="Brand / model / condition" />
+              </div>
+            )}
+          </div>
+
+          <div className="col-span-2 border-t border-gray-100 pt-4">
+            <ImageUploader
+              label="General Equipment Photos (fridges, shelving, storage)"
+              urls={equipmentPhotos}
+              onChange={setEquipmentPhotos}
+            />
           </div>
         </div>
       </section>

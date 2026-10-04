@@ -84,6 +84,10 @@ model Store {
   municipalRegistrationNumber String?
   registrationNotes          String?
 
+  // Store contact & identity media
+  storeTelephoneNumber String?
+  storePhotoUrls       String[] @default([])
+
   createdById String
   createdBy   User   @relation("StoreCreatedBy", fields: [createdById], references: [id])
 
@@ -117,6 +121,14 @@ enum AssessmentStatus {
   SUBMITTED
   REVIEWED
   FLAGGED
+}
+
+enum InternetConnectivity {
+  NONE
+  MOBILE_DATA
+  WIFI
+  FIBER
+  UNKNOWN
 }
 
 model Assessment {
@@ -156,6 +168,21 @@ model Assessment {
   counterfeitNotes       String?
   photoUrls              String[] @default([])
 
+  // ── Commercial metrics ──
+  totalSkuCount               Int?
+  estimatedMonthlyTurnoverZar Float?
+
+  // ── Store infrastructure & equipment ──
+  packingShelvesCount   Int?
+  posInstalled          Boolean @default(false)
+  posBrand              String?
+  posModel              String?
+  posPhotoUrls          String[] @default([])
+  internetConnectivity  InternetConnectivity @default(UNKNOWN)
+  scannerInstalled      Boolean @default(false)
+  scannerDetails        String?
+  equipmentPhotoUrls    String[] @default([])
+
   internalNotes String? // visible to agency staff only, never shown to CLIENT role
 
   createdAt DateTime @default(now())
@@ -171,5 +198,6 @@ model ProductLine {
   brand                 String   // e.g. "Coca-Cola", "Omo", "Lay's"
   rank                  Int?     // 1 = top seller at this store
   estimatedMonthlyUnits Int?
+  estimatedUnitPriceZar Float?
   notes                 String?
 }

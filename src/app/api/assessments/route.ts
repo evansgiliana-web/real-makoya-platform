@@ -10,6 +10,7 @@ const productLineSchema = z.object({
   brand: z.string().min(1),
   rank: z.number().int().optional().nullable(),
   estimatedMonthlyUnits: z.number().int().optional().nullable(),
+  estimatedUnitPriceZar: z.number().optional().nullable(),
   notes: z.string().optional(),
 });
 
@@ -38,6 +39,19 @@ const assessmentSchema = z.object({
   batchCodeIssueFlag: z.boolean().default(false),
   pricingAnomalyFlag: z.boolean().default(false),
   counterfeitNotes: z.string().optional(),
+
+  packingShelvesCount: z.number().int().optional().nullable(),
+  posInstalled: z.boolean().default(false),
+  posBrand: z.string().optional(),
+  posModel: z.string().optional(),
+  posPhotoUrls: z.array(z.string().url()).default([]),
+  internetConnectivity: z.enum(["NONE", "MOBILE_DATA", "WIFI", "FIBER", "UNKNOWN"]).default("UNKNOWN"),
+  scannerInstalled: z.boolean().default(false),
+  scannerDetails: z.string().optional(),
+  equipmentPhotoUrls: z.array(z.string().url()).default([]),
+
+  totalSkuCount: z.number().int().optional().nullable(),
+  estimatedMonthlyTurnoverZar: z.number().optional().nullable(),
 
   internalNotes: z.string().optional(),
 });
@@ -70,6 +84,7 @@ export async function POST(req: NextRequest) {
           brand: p.brand,
           rank: p.rank ?? null,
           estimatedMonthlyUnits: p.estimatedMonthlyUnits ?? null,
+          estimatedUnitPriceZar: p.estimatedUnitPriceZar ?? null,
           notes: p.notes,
         })),
       },

@@ -39,7 +39,9 @@ export async function GET() {
     "Municipal Registration Status",
     "Registration Number",
     "Field Agent",
-    "Top Product Lines (category:brand:rank:est.units)",
+    "Total SKUs",
+    "Est. Monthly Turnover (ZAR)",
+    "Top Product Lines (category:brand:rank:est.units:avg price ZAR)",
     "Source Type",
     "Supplier Name",
     "Supplier Location",
@@ -65,8 +67,13 @@ export async function GET() {
     a.store.municipalRegistrationStatus,
     a.store.municipalRegistrationNumber ?? "",
     a.agent.name,
+    a.totalSkuCount ?? "",
+    a.estimatedMonthlyTurnoverZar ?? "",
     a.productLines
-      .map((p) => `${p.category}:${p.brand}:${p.rank ?? ""}:${p.estimatedMonthlyUnits ?? ""}`)
+      .map(
+        (p) =>
+          `${p.category}:${p.brand}:${p.rank ?? ""}:${p.estimatedMonthlyUnits ?? ""}:${p.estimatedUnitPriceZar ?? ""}`
+      )
       .join(" | "),
     a.sourceType,
     a.supplierName ?? "",
