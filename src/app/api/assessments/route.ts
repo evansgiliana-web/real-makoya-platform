@@ -71,6 +71,10 @@ export async function POST(req: NextRequest) {
 
   const { productLines, healthPermitExpiry, visitDate, ...rest } = parsed.data;
 
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!user) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+
+
   const assessment = await prisma.assessment.create({
     data: {
       ...rest,
@@ -78,6 +82,11 @@ export async function POST(req: NextRequest) {
       agentId: session.user.id,
       visitDate: visitDate ? new Date(visitDate) : new Date(),
       healthPermitExpiry: healthPermitExpiry ? new Date(healthPermitExpiry) : null,
+      //addedd  
+      totalSkuCount: parsed.data.totalSkuCount ?? null,
+      estimatedMonthlyTurnoverZar: parsed.data.estimatedMonthlyTurnoverZar ?? null,
+
+
       productLines: {
         create: productLines.map((p) => ({
           category: p.category,

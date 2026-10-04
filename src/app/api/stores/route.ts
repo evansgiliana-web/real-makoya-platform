@@ -60,6 +60,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!user) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+
   const store = await prisma.store.create({
     data: {
       ...parsed.data,

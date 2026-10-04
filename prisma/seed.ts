@@ -4,37 +4,50 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.co.za";
-  const password = process.env.SEED_ADMIN_PASSWORD || "ChangeMe123!";
-  const name = process.env.SEED_ADMIN_NAME || "Real Makoya Super Admin";
+  const emailAdmin = process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.com";
+  const passwordAdmin = process.env.SEED_ADMIN_PASSWORD || "Outlook@001";
+  const nameAdmin = process.env.SEED_ADMIN_NAME || "Real Makoya Admin";
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    console.log(`Seed skipped — user ${email} already exists.`);
-    return;
+  const emailSuper = process.env.SEED_SUPER_EMAIL || "superadmin@realmakoya.com";
+  const passwordSuper = process.env.SEED_SUPER_PASSWORD || "Outlook@001";
+  const nameSuper = process.env.SEED_SUPER_NAME || "Real Makoya Super Admin";
+
+  // Hash separately
+  const passwordHashAdmin = await bcrypt.hash(passwordAdmin, 12);
+  const passwordHashSuper = await bcrypt.hash(passwordSuper, 12);
+
+  // Seed ADMIN if not exists
+  const existingAdmin = await prisma.user.findUnique({ where: { email: emailAdmin } });
+  if (!existingAdmin) {
+    await prisma.user.create({
+      data: {
+        name: nameAdmin,
+        email: emailAdmin,
+        passwordHash: passwordHashAdmin,
+        role: "ADMIN",
+      },
+    });
+    console.log(`✅ Admin user seeded: ${emailAdmin}`);
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  const admin = await prisma.user.create({
-    data: {
-      name,
-      email,
-      passwordHash,
-      role: "SUPER_ADMIN",
-    },
-  });
-
-  console.log("──────────────────────────────────────────");
-  console.log("Super Admin account created:");
-  console.log("  Email:   ", admin.email);
-  console.log("  Password:", password, "(change this after first login)");
-  console.log("──────────────────────────────────────────");
+  // Seed SUPER_ADMIN if not exists
+  const existingSuper = await prisma.user.findUnique({ where: { email: emailSuper } });
+  if (!existingSuper) {
+    await prisma.user.create({
+      data: {
+        name: nameSuper,
+        email: emailSuper,
+        passwordHash: passwordHashSuper,
+        role: "SUPER_ADMIN",
+      },
+    });
+    console.log(`✅ Super Admin user seeded: ${emailSuper}`);
+  }
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error("❌ Seed failed:", e);
     process.exit(1);
   })
   .finally(async () => {
