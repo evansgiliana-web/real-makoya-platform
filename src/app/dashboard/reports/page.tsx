@@ -21,7 +21,10 @@ export default async function ReportsPage() {
     }
   }
 
+  // Client reports only include REVIEWED assessments (QA gate).
+  // Agency staff still see a pending-review notice below.
   const assessments = await prisma.assessment.findMany({
+    where: isClient ? { status: "REVIEWED" } : undefined,
     include: {
       store: {
         select: {
@@ -42,13 +45,23 @@ export default async function ReportsPage() {
     orderBy: { visitDate: "desc" },
   });
 
+  const pendingReviewCount = isClient
+    ? 0
+    : await prisma.assessment.count({ where: { status: "SUBMITTED" } });
+
   // If brand-scoped, drop assessments that have zero matching product lines
   const scoped = brandFilter ? assessments.filter((a) => a.productLines.length > 0) : assessments;
 
-  const totalStores = new Set(scoped.map((a) => a.storeId)).size;
-  const coaValidPct = pct(scoped.filter((a) => a.hasValidCoA).length, scoped.length);
-  const healthPermitPct = pct(scoped.filter((a) => a.hasHealthPermit).length, scoped.length);
-  const authenticPct = pct(scoped.filter((a) => a.brandAuthenticityVerified).length, scoped.length);
+  // For client metrics, only REVIEWED counts; for staff we show all but surface pending.
+  const reportScoped = isClient
+    ? scoped
+    : scoped.filter((a) => a.status === "REVIEWED");
+  const metricsSource = isClient ? scoped : reportScoped.length > 0 ? reportScoped : scoped;
+
+  const totalStores = new Set(metricsSource.map((a) => a.storeId)).size;
+  const coaValidPct = pct(metricsSource.filter((a) => a.hasValidCoA).length, metricsSource.length);
+  const healthPermitPct = pct(metricsSource.filter((a) => a.hasHealthPermit).length, metricsSource.length);
+  const authenticPct = pct(metricsSource.filter((a) => a.brandAuthenticityVerified).length, metricsSource.length);
 
   const riskCounts: Record<string, number> = { NONE: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CONFIRMED_COUNTERFEIT: 0 };
   const sourceCounts: Record<string, number> = {
@@ -88,6 +101,14 @@ export default async function ReportsPage() {
   const totalSkus = directoryRows.reduce((sum, a) => sum + (a.totalSkuCount || 0), 0);
 
   return (
+    <>
+    {!isClient && pendingReviewCount > 0 && (
+      <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <strong>{pendingReviewCount}</strong> assessment(s) are waiting for Admin review.
+        Only <em>Reviewed</em> assessments appear in client-facing metrics and reports.
+      </div>
+    )}
+
     <div>
       <div className="flex items-start justify-between mb-6 no-print">
         <div>
@@ -227,6 +248,7 @@ export default async function ReportsPage() {
         </footer>
       </div>
     </div>
+    </>
   );
 }
 

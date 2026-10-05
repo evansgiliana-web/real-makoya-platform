@@ -8,8 +8,10 @@ export type Permission =
   | "store:create"
   | "store:edit"
   | "store:delete"
+  | "store:redact-pii"
   | "assessment:create"
   | "assessment:edit"
+  | "assessment:review" // Admin/Super Admin only — separation of duties
   | "user:manage"
   | "report:view"
   | "report:view-internal-notes"
@@ -20,8 +22,10 @@ const PERMISSIONS: Record<Role, Permission[]> = {
     "store:create",
     "store:edit",
     "store:delete",
+    "store:redact-pii",
     "assessment:create",
     "assessment:edit",
+    "assessment:review",
     "user:manage",
     "report:view",
     "report:view-internal-notes",
@@ -31,14 +35,22 @@ const PERMISSIONS: Record<Role, Permission[]> = {
     "store:create",
     "store:edit",
     "store:delete",
+    "store:redact-pii",
     "assessment:create",
     "assessment:edit",
+    "assessment:review",
     "user:manage",
     "report:view",
     "report:view-internal-notes",
     "export:raw-data",
   ],
-  FIELD_AGENT: ["store:create", "store:edit", "assessment:create", "assessment:edit", "report:view"],
+  FIELD_AGENT: [
+    "store:create",
+    "store:edit",
+    "assessment:create",
+    "assessment:edit",
+    "report:view",
+  ],
   CLIENT: ["report:view"],
 };
 

@@ -1,5 +1,5 @@
 // Real Makoya Agency — Retail Intelligence & Compliance Platform
-// Database schema
+// Database schema (Phase 1: POPIA, QA review, visit cadence, audit log)
 
 generator client {
   provider = "prisma-client-js"
@@ -39,6 +39,7 @@ model User {
 
   createdStores Store[]
   assessments   Assessment[]
+  auditLogs     AuditLog[]
 
   invitedById String?
   createdAt   DateTime @default(now())
@@ -89,11 +90,22 @@ model Store {
   storeTelephoneNumber String?
   storePhotoUrls       String[] @default([])
 
-  // Categorized photo gallery (e.g. "Store Front", "Street Pole") —
-  // an alternative/addition to the simple storePhotoUrls array above.
-  // Not yet wired into the capture forms or API — tell me if you want
-  // to switch to this instead of (or alongside) storePhotoUrls.
+  // Categorized photo gallery
   images Image[]
+
+  // ── POPIA / data protection ──
+  // Consent must be obtained at capture time before storing owner PII
+  ownerConsentGiven   Boolean   @default(false)
+  ownerConsentAt      DateTime?
+  ownerConsentById    String?   // user id who recorded consent
+  // Soft-redaction: PII fields cleared, flag set, original values not recoverable via app
+  piiRedacted         Boolean   @default(false)
+  piiRedactedAt       DateTime?
+  piiRedactedById     String?
+
+  // ── Visit cadence ──
+  nextVisitDue        DateTime?
+  visitCadenceDays    Int       @default(90) // default 3-month revisit
 
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
@@ -115,7 +127,7 @@ model Image {
 }
 
 // ──────────────────────────────────────────────
-// ASSESSMENT — one field-capture visit, holding the other 4 data domains
+// ASSESSMENT — one field-capture visit
 // ──────────────────────────────────────────────
 
 enum SourceType {
@@ -158,6 +170,12 @@ model Assessment {
 
   visitDate DateTime         @default(now())
   status    AssessmentStatus @default(SUBMITTED)
+
+  // ── QA / Review layer ──
+  // Client reports only count assessments with status = REVIEWED
+  reviewedAt     DateTime?
+  reviewedById   String?
+  reviewNotes    String?
 
   // ── Top-selling product lines ──
   productLines ProductLine[]
@@ -217,4 +235,31 @@ model ProductLine {
   estimatedMonthlyUnits Int?
   estimatedUnitPriceZar Float?
   notes                 String?
+}
+
+// ──────────────────────────────────────────────
+// AUDIT LOG — immutable trail of who did what
+// ──────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorEmail String?  // denormalised so log survives user deletion
+  actorRole  String?
+
+  action     String   // e.g. "store.create", "assessment.review", "store.redact_pii"
+  entityType String   // "Store" | "Assessment" | "User"
+  entityId   String
+
+  // Optional before/after snapshot (JSON string) for key fields
+  beforeJson String?
+  afterJson  String?
+  metaJson   String?  // free-form extra context
+
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
 }

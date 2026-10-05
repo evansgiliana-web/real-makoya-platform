@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
+import { writeAuditLog } from "@/lib/audit";
 import { z } from "zod";
 
 const storeSchema = z.object({
@@ -20,15 +21,18 @@ const storeSchema = z.object({
   municipalRegistrationNumber: z.string().optional(),
   registrationNotes: z.string().optional(),
   storeTelephoneNumber: z.string().optional(),
-  storePhotoUrls: z.array(z.string().url()).default([]),
+  storePhotoUrls: z.array(z.string()).default([]),
+  // POPIA
+  ownerConsentGiven: z.boolean(),
+  // Visit cadence
+  visitCadenceDays: z.number().int().min(7).max(365).optional(),
+  nextVisitDue: z.string().optional().nullable(),
 });
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // CLIENT role sees stores only through the aggregated reports endpoint,
-  // not the raw management list.
   if (session.user.role === "CLIENT") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -62,10 +66,59 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  // POPIA: refuse to store owner contact / ID without explicit consent
+  if (!parsed.data.ownerConsentGiven) {
+    return NextResponse.json(
+      {
+        error:
+          "Owner consent is required before storing ID number or contact details (POPIA). Tick the consent checkbox.",
+      },
+      { status: 400 }
+    );
+  }
+
+  const cadence = parsed.data.visitCadenceDays ?? 90;
+  const nextDue = parsed.data.nextVisitDue
+    ? new Date(parsed.data.nextVisitDue)
+    : new Date(Date.now() + cadence * 24 * 60 * 60 * 1000);
+
   const store = await prisma.store.create({
     data: {
-      ...parsed.data,
+      name: parsed.data.name,
+      tradingAs: parsed.data.tradingAs,
+      address: parsed.data.address,
+      town: parsed.data.town,
+      province: parsed.data.province,
+      latitude: parsed.data.latitude,
+      longitude: parsed.data.longitude,
+      ownerName: parsed.data.ownerName,
+      ownerContactNumber: parsed.data.ownerContactNumber,
+      ownerIdOrCompanyRegNumber: parsed.data.ownerIdOrCompanyRegNumber,
+      municipalRegistrationStatus: parsed.data.municipalRegistrationStatus,
+      municipalRegistrationNumber: parsed.data.municipalRegistrationNumber,
+      registrationNotes: parsed.data.registrationNotes,
+      storeTelephoneNumber: parsed.data.storeTelephoneNumber,
+      storePhotoUrls: parsed.data.storePhotoUrls,
+      ownerConsentGiven: true,
+      ownerConsentAt: new Date(),
+      ownerConsentById: session.user.id,
+      visitCadenceDays: cadence,
+      nextVisitDue: nextDue,
       createdById: session.user.id,
+    },
+  });
+
+  await writeAuditLog({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    actorRole: session.user.role,
+    action: "store.create",
+    entityType: "Store",
+    entityId: store.id,
+    after: {
+      name: store.name,
+      town: store.town,
+      ownerConsentGiven: true,
     },
   });
 

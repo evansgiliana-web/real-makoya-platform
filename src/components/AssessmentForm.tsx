@@ -22,15 +22,82 @@ const emptyLine: ProductLine = {
   notes: "",
 };
 
-export default function AssessmentForm({ storeId }: { storeId: string }) {
+type AssessmentInitial = {
+  id: string;
+  storeId: string;
+  productLines?: {
+    category: string;
+    brand: string;
+    rank?: number | null;
+    estimatedMonthlyUnits?: number | null;
+    estimatedUnitPriceZar?: number | null;
+    notes?: string | null;
+  }[];
+  sourceType?: string;
+  supplierName?: string | null;
+  supplierLocation?: string | null;
+  distributionNotes?: string | null;
+  hasValidCoA?: boolean;
+  coaNotes?: string | null;
+  hasHealthPermit?: boolean;
+  healthPermitNumber?: string | null;
+  healthPermitExpiry?: string | null;
+  brandAuthenticityVerified?: boolean;
+  complianceNotes?: string | null;
+  counterfeitRisk?: string;
+  packagingIssueFlag?: boolean;
+  batchCodeIssueFlag?: boolean;
+  pricingAnomalyFlag?: boolean;
+  counterfeitNotes?: string | null;
+  packingShelvesCount?: number | null;
+  posInstalled?: boolean;
+  posBrand?: string | null;
+  posModel?: string | null;
+  posPhotoUrls?: string[];
+  internetConnectivity?: string;
+  scannerInstalled?: boolean;
+  scannerDetails?: string | null;
+  equipmentPhotoUrls?: string[];
+  totalSkuCount?: number | null;
+  estimatedMonthlyTurnoverZar?: number | null;
+  internalNotes?: string | null;
+  photoUrls?: string[];
+};
+
+export default function AssessmentForm({
+  storeId,
+  initial,
+}: {
+  storeId: string;
+  initial?: AssessmentInitial;
+}) {
   const router = useRouter();
-  const [lines, setLines] = useState<ProductLine[]>([{ ...emptyLine }]);
+  const isEdit = Boolean(initial?.id);
+  const [lines, setLines] = useState<ProductLine[]>(
+    initial?.productLines && initial.productLines.length > 0
+      ? initial.productLines.map((p) => ({
+          category: p.category || "",
+          brand: p.brand || "",
+          rank: p.rank != null ? String(p.rank) : "",
+          estimatedMonthlyUnits:
+            p.estimatedMonthlyUnits != null ? String(p.estimatedMonthlyUnits) : "",
+          estimatedUnitPriceZar:
+            p.estimatedUnitPriceZar != null ? String(p.estimatedUnitPriceZar) : "",
+          notes: p.notes || "",
+        }))
+      : [{ ...emptyLine }]
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [posPhotos, setPosPhotos] = useState<string[]>([]);
-  const [equipmentPhotos, setEquipmentPhotos] = useState<string[]>([]);
-  const [posInstalled, setPosInstalled] = useState(false);
-  const [scannerInstalled, setScannerInstalled] = useState(false);
+  const [posPhotos, setPosPhotos] = useState<string[]>(initial?.posPhotoUrls || []);
+  const [equipmentPhotos, setEquipmentPhotos] = useState<string[]>(
+    initial?.equipmentPhotoUrls || []
+  );
+  const [counterfeitPhotos, setCounterfeitPhotos] = useState<string[]>(
+    initial?.photoUrls || []
+  );
+  const [posInstalled, setPosInstalled] = useState(Boolean(initial?.posInstalled));
+  const [scannerInstalled, setScannerInstalled] = useState(Boolean(initial?.scannerInstalled));
 
   function updateLine(i: number, field: keyof ProductLine, value: string) {
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, [field]: value } : l)));
@@ -92,8 +159,14 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
       internalNotes: form.get("internalNotes") || undefined,
     };
 
-    const res = await fetch("/api/assessments", {
-      method: "POST",
+    // Include counterfeit evidence photos
+    (payload as any).photoUrls = counterfeitPhotos;
+
+    const url = isEdit ? `/api/assessments/${initial!.id}` : "/api/assessments";
+    const method = isEdit ? "PATCH" : "POST";
+
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -101,7 +174,12 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
     setLoading(false);
 
     if (!res.ok) {
-      setError("Could not save assessment. Please check the required fields.");
+      const data = await res.json().catch(() => ({}));
+      setError(
+        typeof data.error === "string"
+          ? data.error
+          : "Could not save assessment. Please check the required fields."
+      );
       return;
     }
 
@@ -188,7 +266,7 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Source Type *</label>
-            <select name="sourceType" required className="input">
+            <select name="sourceType" required className="input" defaultValue={initial?.sourceType || "FORMAL_WHOLESALER"}>
               <option value="FORMAL_WHOLESALER">Formal Wholesaler</option>
               <option value="INFORMAL_BULK_BUYER">Informal Bulk Buyer</option>
               <option value="UNVERIFIED_SUPPLIER">Unverified Supplier</option>
@@ -197,15 +275,15 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
           </div>
           <div>
             <label className="label">Supplier Name</label>
-            <input name="supplierName" className="input" />
+            <input name="supplierName" defaultValue={initial?.supplierName || ""} className="input" />
           </div>
           <div>
             <label className="label">Supplier Location</label>
-            <input name="supplierLocation" className="input" />
+            <input name="supplierLocation" defaultValue={initial?.supplierLocation || ""} className="input" />
           </div>
           <div className="col-span-2">
             <label className="label">Distribution Notes</label>
-            <textarea name="distributionNotes" rows={2} className="input" />
+            <textarea name="distributionNotes" defaultValue={initial?.distributionNotes || ""} rows={2} className="input" />
           </div>
         </div>
       </section>
@@ -228,7 +306,7 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
           </label>
           <div>
             <label className="label">Health Permit Number</label>
-            <input name="healthPermitNumber" className="input" />
+            <input name="healthPermitNumber" defaultValue={initial?.healthPermitNumber || ""} className="input" />
           </div>
           <div>
             <label className="label">Health Permit Expiry</label>
@@ -240,7 +318,7 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
           </label>
           <div className="col-span-2">
             <label className="label">CoA / Compliance Notes</label>
-            <textarea name="coaNotes" rows={2} className="input" />
+            <textarea name="coaNotes" defaultValue={initial?.coaNotes || ""} rows={2} className="input" />
           </div>
         </div>
       </section>
@@ -255,7 +333,7 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Overall Counterfeit Risk *</label>
-            <select name="counterfeitRisk" required className="input" defaultValue="NONE">
+            <select name="counterfeitRisk" required className="input" defaultValue={initial?.counterfeitRisk || "NONE"}>
               <option value="NONE">None observed</option>
               <option value="LOW">Low</option>
               <option value="MEDIUM">Medium</option>
@@ -279,7 +357,14 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
           </div>
           <div className="col-span-2">
             <label className="label">Counterfeit Screening Notes</label>
-            <textarea name="counterfeitNotes" rows={2} className="input" />
+            <textarea name="counterfeitNotes" rows={2} className="input" defaultValue={initial?.counterfeitNotes || ""} />
+          <div className="mt-3">
+            <ImageUploader
+              label="Counterfeit evidence photos"
+              urls={counterfeitPhotos}
+              onChange={setCounterfeitPhotos}
+            />
+          </div>
           </div>
         </div>
       </section>
@@ -330,7 +415,7 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
           </div>
           <div>
             <label className="label">Internet Connectivity</label>
-            <select name="internetConnectivity" className="input" defaultValue="UNKNOWN">
+            <select name="internetConnectivity" className="input" defaultValue={initial?.internetConnectivity || "UNKNOWN"}>
               <option value="NONE">None</option>
               <option value="MOBILE_DATA">Mobile Data</option>
               <option value="WIFI">Wi-Fi</option>
@@ -353,11 +438,11 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
               <div className="grid grid-cols-2 gap-4 pl-6">
                 <div>
                   <label className="label">POS Brand</label>
-                  <input name="posBrand" className="input" placeholder="e.g. Yoco, iKhokha" />
+                  <input name="posBrand" defaultValue={initial?.posBrand || ""} className="input" placeholder="e.g. Yoco, iKhokha" />
                 </div>
                 <div>
                   <label className="label">POS Model</label>
-                  <input name="posModel" className="input" />
+                  <input name="posModel" defaultValue={initial?.posModel || ""} className="input" />
                 </div>
                 <div className="col-span-2">
                   <ImageUploader label="POS Photos" urls={posPhotos} onChange={setPosPhotos} />
@@ -379,7 +464,7 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
             {scannerInstalled && (
               <div className="pl-6">
                 <label className="label">Scanner Details</label>
-                <input name="scannerDetails" className="input" placeholder="Brand / model / condition" />
+                <input name="scannerDetails" defaultValue={initial?.scannerDetails || ""} className="input" placeholder="Brand / model / condition" />
               </div>
             )}
           </div>
@@ -396,13 +481,13 @@ export default function AssessmentForm({ storeId }: { storeId: string }) {
 
       <section className="card p-6">
         <label className="label">Internal Notes (agency staff only — never shown to clients)</label>
-        <textarea name="internalNotes" rows={2} className="input" />
+        <textarea name="internalNotes" defaultValue={initial?.internalNotes || ""} rows={2} className="input" />
       </section>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button type="submit" disabled={loading} className="btn-primary">
-        {loading ? "Saving…" : "Submit Assessment"}
+        {loading ? "Saving…" : isEdit ? "Save changes" : "Submit Assessment"}
       </button>
     </form>
   );

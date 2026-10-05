@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
+import { writeAuditLog } from "@/lib/audit";
+import { sendHighRiskAlert } from "@/lib/email";
 import { z } from "zod";
 
 const productLineSchema = z.object({
@@ -39,16 +41,17 @@ const assessmentSchema = z.object({
   batchCodeIssueFlag: z.boolean().default(false),
   pricingAnomalyFlag: z.boolean().default(false),
   counterfeitNotes: z.string().optional(),
+  photoUrls: z.array(z.string()).default([]),
 
   packingShelvesCount: z.number().int().optional().nullable(),
   posInstalled: z.boolean().default(false),
   posBrand: z.string().optional(),
   posModel: z.string().optional(),
-  posPhotoUrls: z.array(z.string().url()).default([]),
+  posPhotoUrls: z.array(z.string()).default([]),
   internetConnectivity: z.enum(["NONE", "MOBILE_DATA", "WIFI", "FIBER", "UNKNOWN"]).default("UNKNOWN"),
   scannerInstalled: z.boolean().default(false),
   scannerDetails: z.string().optional(),
-  equipmentPhotoUrls: z.array(z.string().url()).default([]),
+  equipmentPhotoUrls: z.array(z.string()).default([]),
 
   totalSkuCount: z.number().int().optional().nullable(),
   estimatedMonthlyTurnoverZar: z.number().optional().nullable(),
@@ -71,9 +74,13 @@ export async function POST(req: NextRequest) {
 
   const { productLines, healthPermitExpiry, visitDate, ...rest } = parsed.data;
 
+  // New assessments start as SUBMITTED (pending QA). Only Admin can set REVIEWED.
+  const status = rest.status === "DRAFT" ? "DRAFT" : "SUBMITTED";
+
   const assessment = await prisma.assessment.create({
     data: {
       ...rest,
+      status,
       storeId: parsed.data.storeId,
       agentId: session.user.id,
       visitDate: visitDate ? new Date(visitDate) : new Date(),
@@ -89,8 +96,51 @@ export async function POST(req: NextRequest) {
         })),
       },
     },
-    include: { productLines: true },
+    include: { store: true, agent: { select: { name: true } } },
   });
+
+  // Bump store nextVisitDue based on cadence
+  const store = await prisma.store.findUnique({ where: { id: parsed.data.storeId } });
+  if (store) {
+    const cadence = store.visitCadenceDays || 90;
+    await prisma.store.update({
+      where: { id: store.id },
+      data: {
+        nextVisitDue: new Date(Date.now() + cadence * 24 * 60 * 60 * 1000),
+      },
+    });
+  }
+
+  await writeAuditLog({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    actorRole: session.user.role,
+    action: "assessment.create",
+    entityType: "Assessment",
+    entityId: assessment.id,
+    after: {
+      storeId: assessment.storeId,
+      status: assessment.status,
+      counterfeitRisk: assessment.counterfeitRisk,
+    },
+  });
+
+  // High-risk alert
+  if (
+    assessment.counterfeitRisk === "HIGH" ||
+    assessment.counterfeitRisk === "CONFIRMED_COUNTERFEIT"
+  ) {
+    await sendHighRiskAlert({
+      storeName: assessment.store.name,
+      storeTown: assessment.store.town,
+      storeProvince: assessment.store.province,
+      assessmentId: assessment.id,
+      risk: assessment.counterfeitRisk,
+      notes: assessment.counterfeitNotes,
+      agentName: assessment.agent.name,
+      visitDate: assessment.visitDate.toISOString().slice(0, 10),
+    });
+  }
 
   return NextResponse.json(assessment, { status: 201 });
 }

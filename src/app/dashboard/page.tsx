@@ -35,11 +35,13 @@ export default async function OverviewPage({
   const period = searchParams.period || "ALL";
   const region = searchParams.region || "ALL";
 
-  const [storeCount, assessmentCount, highRiskCount, unregisteredCount, regionsRaw] = await Promise.all([
+  const [storeCount, assessmentCount, highRiskCount, unregisteredCount, overdueCount, pendingReviewCount, regionsRaw] = await Promise.all([
     prisma.store.count(),
     prisma.assessment.count(),
     prisma.assessment.count({ where: { counterfeitRisk: { in: ["HIGH", "CONFIRMED_COUNTERFEIT"] } } }),
     prisma.store.count({ where: { municipalRegistrationStatus: { in: ["UNREGISTERED", "UNKNOWN"] } } }),
+    prisma.store.count({ where: { nextVisitDue: { lt: new Date() } } }),
+    prisma.assessment.count({ where: { status: "SUBMITTED" } }),
     prisma.store.findMany({ distinct: ["province"], select: { province: true } }),
   ]);
   const regions = regionsRaw.map((r) => r.province).sort();
@@ -138,6 +140,20 @@ export default async function OverviewPage({
       linkLabel: "View Unregistered",
       warn: true,
     },
+    {
+      label: "Overdue Visits",
+      value: overdueCount,
+      href: "/dashboard/stores",
+      linkLabel: "View Stores",
+      warn: true,
+    },
+    {
+      label: "Pending QA Review",
+      value: pendingReviewCount,
+      href: "/dashboard/reports",
+      linkLabel: "Open Reports",
+      warn: true,
+    },
   ];
 
   return (
@@ -152,7 +168,7 @@ export default async function OverviewPage({
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         {stats.map((s) => (
           <div key={s.label} className="card p-4 flex flex-col justify-between">
             <div>
