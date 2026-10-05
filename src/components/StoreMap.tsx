@@ -1,7 +1,7 @@
 "use client";
 
 import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
-// @ts-expect-error Leaflet CSS is not typed in this project setup.
+
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
 
