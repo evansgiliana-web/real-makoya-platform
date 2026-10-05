@@ -1,6 +1,3 @@
-// Real Makoya Agency — Retail Intelligence & Compliance Platform
-// Database schema (Phase 1: POPIA, QA review, visit cadence, audit log)
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,54 +7,158 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ──────────────────────────────────────────────
-// USERS & ACCESS CONTROL
-// ──────────────────────────────────────────────
-
-enum Role {
-  SUPER_ADMIN  // Full platform control, manages all users & data
-  ADMIN        // Real Makoya agency management: manages field agents, stores, clients
-  FIELD_AGENT  // Field capture only: can create/edit stores & assessments
-  CLIENT       // FMCG company: read-only access to professional reports
-}
-
 model User {
-  id            String   @id @default(cuid())
-  name          String
-  email         String   @unique
-  passwordHash  String
-  role          Role
-  active        Boolean  @default(true)
-
-  // Only meaningful for CLIENT role: which FMCG company this login represents
-  companyName   String?
-
-  // CLIENT-role scoping: if allBrandsAccess is true, the client sees all data.
-  // Otherwise, they only see product lines / stores tied to their brandAccess list.
+  id              String        @id @default(cuid())
+  name            String
+  email           String        @unique
+  passwordHash    String
+  role            Role
+  active          Boolean       @default(true)
+  companyName     String?
   allBrandsAccess Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  invitedById     String?
+  assessments     Assessment[]
+  auditLogs       AuditLog[]
   brandAccess     BrandAccess[]
-
-  createdStores Store[]
-  assessments   Assessment[]
-  auditLogs     AuditLog[]
-
-  invitedById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdStores   Store[]
 }
 
 model BrandAccess {
   id        String @id @default(cuid())
   userId    String
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   brandName String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, brandName])
 }
 
-// ──────────────────────────────────────────────
-// STORE — Ownership & Registration
-// ──────────────────────────────────────────────
+model Store {
+  id                          String             @id @default(cuid())
+  name                        String
+  tradingAs                   String?
+  address                     String
+  town                        String
+  province                    String
+  latitude                    Float?
+  longitude                   Float?
+  ownerName                   String
+  ownerContactNumber          String?
+  ownerIdOrCompanyRegNumber   String?
+  municipalRegistrationStatus RegistrationStatus @default(UNKNOWN)
+  municipalRegistrationNumber String?
+  registrationNotes           String?
+  createdById                 String
+  createdAt                   DateTime           @default(now())
+  updatedAt                   DateTime           @updatedAt
+  storePhotoUrls              String[]           @default([])
+  storeTelephoneNumber        String?
+  nextVisitDue                DateTime?
+  ownerConsentAt              DateTime?
+  ownerConsentById            String?
+  ownerConsentGiven           Boolean            @default(false)
+  piiRedacted                 Boolean            @default(false)
+  piiRedactedAt               DateTime?
+  piiRedactedById             String?
+  visitCadenceDays            Int                @default(90)
+  assessments                 Assessment[]
+  images                      Image[]
+  createdBy                   User               @relation(fields: [createdById], references: [id])
+}
+
+model Image {
+  id         String   @id @default(cuid())
+  category   String
+  url        String
+  storeId    String
+  capturedAt DateTime @default(now())
+  capturedBy String
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+model Assessment {
+  id                          String               @id @default(cuid())
+  storeId                     String
+  agentId                     String
+  visitDate                   DateTime             @default(now())
+  status                      AssessmentStatus     @default(SUBMITTED)
+  sourceType                  SourceType
+  supplierName                String?
+  supplierLocation            String?
+  distributionNotes           String?
+  hasValidCoA                 Boolean              @default(false)
+  coaNotes                    String?
+  hasHealthPermit             Boolean              @default(false)
+  healthPermitNumber          String?
+  healthPermitExpiry          DateTime?
+  brandAuthenticityVerified   Boolean              @default(false)
+  complianceNotes             String?
+  counterfeitRisk             CounterfeitRisk      @default(NONE)
+  packagingIssueFlag          Boolean              @default(false)
+  batchCodeIssueFlag          Boolean              @default(false)
+  pricingAnomalyFlag          Boolean              @default(false)
+  counterfeitNotes            String?
+  photoUrls                   String[]             @default([])
+  internalNotes               String?
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @updatedAt
+  equipmentPhotoUrls          String[]             @default([])
+  estimatedMonthlyTurnoverZar Float?
+  internetConnectivity        InternetConnectivity @default(UNKNOWN)
+  packingShelvesCount         Int?
+  posBrand                    String?
+  posInstalled                Boolean              @default(false)
+  posModel                    String?
+  posPhotoUrls                String[]             @default([])
+  scannerDetails              String?
+  scannerInstalled            Boolean              @default(false)
+  totalSkuCount               Int?
+  reviewNotes                 String?
+  reviewedAt                  DateTime?
+  reviewedById                String?
+  agent                       User                 @relation(fields: [agentId], references: [id])
+  store                       Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  productLines                ProductLine[]
+}
+
+model ProductLine {
+  id                    String     @id @default(cuid())
+  assessmentId          String
+  category              String
+  brand                 String
+  rank                  Int?
+  estimatedMonthlyUnits Int?
+  notes                 String?
+  estimatedUnitPriceZar Float?
+  assessment            Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  actorRole  String?
+  action     String
+  entityType String
+  entityId   String
+  beforeJson String?
+  afterJson  String?
+  metaJson   String?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  FIELD_AGENT
+  CLIENT
+}
 
 enum RegistrationStatus {
   REGISTERED
@@ -65,70 +166,6 @@ enum RegistrationStatus {
   UNREGISTERED
   UNKNOWN
 }
-
-model Store {
-  id        String @id @default(cuid())
-  name      String
-  tradingAs String?
-
-  // Location
-  address   String
-  town      String
-  province  String
-  latitude  Float?
-  longitude Float?
-
-  // Ownership & registration
-  ownerName                   String
-  ownerContactNumber          String?
-  ownerIdOrCompanyRegNumber   String?
-  municipalRegistrationStatus RegistrationStatus @default(UNKNOWN)
-  municipalRegistrationNumber String?
-  registrationNotes           String?
-
-  // Store contact & identity media
-  storeTelephoneNumber String?
-  storePhotoUrls       String[] @default([])
-
-  // Categorized photo gallery
-  images Image[]
-
-  // ── POPIA / data protection ──
-  // Consent must be obtained at capture time before storing owner PII
-  ownerConsentGiven   Boolean   @default(false)
-  ownerConsentAt      DateTime?
-  ownerConsentById    String?   // user id who recorded consent
-  // Soft-redaction: PII fields cleared, flag set, original values not recoverable via app
-  piiRedacted         Boolean   @default(false)
-  piiRedactedAt       DateTime?
-  piiRedactedById     String?
-
-  // ── Visit cadence ──
-  nextVisitDue        DateTime?
-  visitCadenceDays    Int       @default(90) // default 3-month revisit
-
-  createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
-
-  assessments Assessment[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Image {
-  id         String   @id @default(cuid())
-  category   String   // e.g. "Store Front", "Street Pole"
-  url        String   // file path or cloud URL
-  storeId    String
-  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  capturedAt DateTime @default(now())
-  capturedBy String
-}
-
-// ──────────────────────────────────────────────
-// ASSESSMENT — one field-capture visit
-// ──────────────────────────────────────────────
 
 enum SourceType {
   FORMAL_WHOLESALER
@@ -158,108 +195,4 @@ enum InternetConnectivity {
   WIFI
   FIBER
   UNKNOWN
-}
-
-model Assessment {
-  id      String @id @default(cuid())
-  storeId String
-  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
-
-  agentId String
-  agent   User   @relation(fields: [agentId], references: [id])
-
-  visitDate DateTime         @default(now())
-  status    AssessmentStatus @default(SUBMITTED)
-
-  // ── QA / Review layer ──
-  // Client reports only count assessments with status = REVIEWED
-  reviewedAt     DateTime?
-  reviewedById   String?
-  reviewNotes    String?
-
-  // ── Top-selling product lines ──
-  productLines ProductLine[]
-
-  // ── Trade & distribution routes ──
-  sourceType        SourceType
-  supplierName      String?
-  supplierLocation  String?
-  distributionNotes String?
-
-  // ── Compliance & CoA verification ──
-  hasValidCoA               Boolean   @default(false)
-  coaNotes                  String?
-  hasHealthPermit           Boolean   @default(false)
-  healthPermitNumber        String?
-  healthPermitExpiry        DateTime?
-  brandAuthenticityVerified Boolean   @default(false)
-  complianceNotes           String?
-
-  // ── Counterfeit screening ──
-  counterfeitRisk    CounterfeitRisk @default(NONE)
-  packagingIssueFlag Boolean         @default(false)
-  batchCodeIssueFlag Boolean         @default(false)
-  pricingAnomalyFlag Boolean         @default(false)
-  counterfeitNotes   String?
-  photoUrls          String[]        @default([])
-
-  // ── Commercial metrics ──
-  totalSkuCount               Int?
-  estimatedMonthlyTurnoverZar Float?
-
-  // ── Store infrastructure & equipment ──
-  packingShelvesCount  Int?
-  posInstalled         Boolean              @default(false)
-  posBrand             String?
-  posModel             String?
-  posPhotoUrls         String[]             @default([])
-  internetConnectivity InternetConnectivity @default(UNKNOWN)
-  scannerInstalled     Boolean              @default(false)
-  scannerDetails       String?
-  equipmentPhotoUrls   String[]             @default([])
-
-  internalNotes String? // visible to agency staff only, never shown to CLIENT role
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model ProductLine {
-  id           String     @id @default(cuid())
-  assessmentId String
-  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-
-  category              String  // e.g. "Beverages", "Snacks", "Personal Care"
-  brand                 String  // e.g. "Coca-Cola", "Omo", "Lay's"
-  rank                  Int?    // 1 = top seller at this store
-  estimatedMonthlyUnits Int?
-  estimatedUnitPriceZar Float?
-  notes                 String?
-}
-
-// ──────────────────────────────────────────────
-// AUDIT LOG — immutable trail of who did what
-// ──────────────────────────────────────────────
-
-model AuditLog {
-  id         String   @id @default(cuid())
-  actorId    String?
-  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  actorEmail String?  // denormalised so log survives user deletion
-  actorRole  String?
-
-  action     String   // e.g. "store.create", "assessment.review", "store.redact_pii"
-  entityType String   // "Store" | "Assessment" | "User"
-  entityId   String
-
-  // Optional before/after snapshot (JSON string) for key fields
-  beforeJson String?
-  afterJson  String?
-  metaJson   String?  // free-form extra context
-
-  createdAt  DateTime @default(now())
-
-  @@index([entityType, entityId])
-  @@index([actorId])
-  @@index([createdAt])
 }
