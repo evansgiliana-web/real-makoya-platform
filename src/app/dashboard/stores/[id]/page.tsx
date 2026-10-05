@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import StoreMapClient from "@/components/StoreMapClient";
 
 const regStyles: Record<string, string> = {
   REGISTERED: "bg-green-100 text-green-700",
@@ -85,6 +86,23 @@ export default async function StoreDetailPage({ params }: { params: { id: string
             </div>
           )}
         </dl>
+      </div>
+
+      <div className="card p-6 mb-6">
+        <h2 className="font-semibold text-brand-900 mb-3">Location</h2>
+        <StoreMapClient
+          stores={[
+            {
+              id: store.id,
+              name: store.name,
+              town: store.town,
+              province: store.province,
+              latitude: store.latitude,
+              longitude: store.longitude,
+              riskLevel: store.assessments[0]?.counterfeitRisk,
+            },
+          ]}
+        />
       </div>
 
       {store.storePhotoUrls.length > 0 && (

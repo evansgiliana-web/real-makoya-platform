@@ -1,6 +1,7 @@
 "use client";
 
 import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+// @ts-expect-error Leaflet CSS is not typed in this project setup.
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
 
@@ -22,22 +23,23 @@ const riskColor: Record<string, string> = {
   CONFIRMED_COUNTERFEIT: "#991b1b",
 };
 
-export default function StoreMap({ stores }: { stores: MapStore[] }) {
+export default function StoreMap({ stores, zoom }: { stores: MapStore[]; zoom?: number }) {
   const pinned = stores.filter((s) => s.latitude != null && s.longitude != null);
 
   if (pinned.length === 0) {
     return (
       <div className="h-72 flex items-center justify-center text-sm text-gray-400 bg-brand-50 rounded-xl border border-dashed border-gray-200">
-        No stores with GPS coordinates captured yet.
+        No GPS location captured for this store yet.
       </div>
     );
   }
 
   const center: [number, number] = [pinned[0].latitude as number, pinned[0].longitude as number];
+  const resolvedZoom = zoom ?? (pinned.length === 1 ? 15 : 11);
 
   return (
     <div className="h-72 rounded-xl overflow-hidden border border-gray-200">
-      <MapContainer center={center} zoom={11} style={{ height: "100%", width: "100%" }} scrollWheelZoom={false}>
+      <MapContainer center={center} zoom={resolvedZoom} style={{ height: "100%", width: "100%" }} scrollWheelZoom={false}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

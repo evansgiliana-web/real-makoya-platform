@@ -15,6 +15,6 @@ const StoreMap = dynamic(() => import("./StoreMap"), {
   ),
 });
 
-export default function StoreMapClient({ stores }: { stores: MapStore[] }) {
-  return <StoreMap stores={stores} />;
+export default function StoreMapClient({ stores, zoom }: { stores: MapStore[]; zoom?: number }) {
+  return <StoreMap stores={stores} zoom={zoom} />;
 }
