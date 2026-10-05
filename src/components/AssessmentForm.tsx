@@ -1,65 +1,8 @@
 "use client";
 
-import { useState, FormEvent, ChangeEvent } from "react";
+import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-
-type ImageUploaderProps = {
-  label: string;
-  urls: string[];
-  onChange: (urls: string[]) => void;
-};
-
-function ImageUploader({ label, urls, onChange }: ImageUploaderProps) {
-  const [uploading, setUploading] = useState(false);
-
-  async function handleFiles(e: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
-    setUploading(true);
-
-    try {
-      const nextUrls = await Promise.all(
-        files.map(
-          (file) =>
-            new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(String(reader.result || ""));
-              reader.onerror = () => reject(new Error("Could not read file."));
-              reader.readAsDataURL(file);
-            }),
-        ),
-      );
-
-      onChange([...urls, ...nextUrls]);
-    } catch {
-      onChange(urls);
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
-  }
-
-  return (
-    <div className="space-y-2">
-      <label className="label">{label}</label>
-      <input type="file" accept="image/*" multiple onChange={handleFiles} className="input" />
-      {uploading && <p className="text-xs text-gray-500">Uploading…</p>}
-      {urls.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {urls.map((url, index) => (
-            <img
-              key={`${url}-${index}`}
-              src={url}
-              alt={`${label} ${index + 1}`}
-              className="h-20 w-20 rounded object-cover border"
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+import ImageUploader from "./ImageUploader";
 
 type ProductLine = {
   category: string;

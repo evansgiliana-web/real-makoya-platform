@@ -53,8 +53,18 @@ export default async function StoreDetailPage({ params }: { params: { id: string
             <dd className="font-medium">{store.ownerName}</dd>
           </div>
           <div>
-            <dt className="text-gray-500">Contact</dt>
+            <dt className="text-gray-500">Owner Contact</dt>
             <dd className="font-medium">{store.ownerContactNumber || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-gray-500">Store Telephone</dt>
+            <dd className="font-medium">{store.storeTelephoneNumber || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-gray-500">GPS Location</dt>
+            <dd className="font-medium">
+              {store.latitude && store.longitude ? `${store.latitude.toFixed(5)}, ${store.longitude.toFixed(5)}` : "Not captured"}
+            </dd>
           </div>
           <div>
             <dt className="text-gray-500">Municipal Registration</dt>
@@ -76,6 +86,18 @@ export default async function StoreDetailPage({ params }: { params: { id: string
           )}
         </dl>
       </div>
+
+      {store.storePhotoUrls.length > 0 && (
+        <div className="card p-6 mb-6">
+          <h2 className="font-semibold text-brand-900 mb-3">Store Photos</h2>
+          <div className="grid grid-cols-4 gap-3">
+            {store.storePhotoUrls.map((url) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={url} src={url} alt="Store photo" className="h-28 w-full object-cover rounded-lg border border-gray-200" />
+            ))}
+          </div>
+        </div>
+      )}
 
       <h2 className="font-semibold text-brand-900 mb-3">Assessment History ({store.assessments.length})</h2>
       <div className="space-y-4">
@@ -100,6 +122,7 @@ export default async function StoreDetailPage({ params }: { params: { id: string
                       {p.rank ? `#${p.rank} ` : ""}
                       {p.brand} ({p.category})
                       {p.estimatedMonthlyUnits ? ` — ~${p.estimatedMonthlyUnits}/mo` : ""}
+                      {p.estimatedUnitPriceZar ? ` @ R${p.estimatedUnitPriceZar.toFixed(2)}` : ""}
                     </li>
                   ))}
                 </ul>
@@ -132,7 +155,37 @@ export default async function StoreDetailPage({ params }: { params: { id: string
                 </p>
                 {a.counterfeitNotes && <p className="text-gray-500 italic mt-1">{a.counterfeitNotes}</p>}
               </div>
+              <div>
+                <p className="font-medium text-brand-900 mb-1">Commercial Metrics</p>
+                <p className="text-gray-600">Total SKUs: {a.totalSkuCount ?? "—"}</p>
+                <p className="text-gray-600">
+                  Est. monthly turnover:{" "}
+                  {a.estimatedMonthlyTurnoverZar
+                    ? `R${a.estimatedMonthlyTurnoverZar.toLocaleString()}`
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-brand-900 mb-1">Infrastructure & Equipment</p>
+                <p className="text-gray-600">Packing shelves: {a.packingShelvesCount ?? "—"}</p>
+                <p className="text-gray-600">
+                  POS: {a.posInstalled ? `${a.posBrand || "Installed"}${a.posModel ? " " + a.posModel : ""}` : "Not installed"}
+                </p>
+                <p className="text-gray-600">
+                  Scanner: {a.scannerInstalled ? a.scannerDetails || "Installed" : "Not installed"}
+                </p>
+                <p className="text-gray-600">Internet: {a.internetConnectivity.replace("_", " ")}</p>
+              </div>
             </div>
+
+            {(a.posPhotoUrls.length > 0 || a.equipmentPhotoUrls.length > 0) && (
+              <div className="grid grid-cols-6 gap-2 mt-3 border-t border-gray-100 pt-3">
+                {[...a.posPhotoUrls, ...a.equipmentPhotoUrls].map((url) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={url} src={url} alt="" className="h-16 w-full object-cover rounded border border-gray-200" />
+                ))}
+              </div>
+            )}
 
             {a.internalNotes && (
               <p className="text-xs text-gray-400 mt-3 border-t border-gray-100 pt-2">

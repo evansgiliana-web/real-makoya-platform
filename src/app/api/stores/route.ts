@@ -19,6 +19,8 @@ const storeSchema = z.object({
   municipalRegistrationStatus: z.enum(["REGISTERED", "PENDING", "UNREGISTERED", "UNKNOWN"]),
   municipalRegistrationNumber: z.string().optional(),
   registrationNotes: z.string().optional(),
+  storeTelephoneNumber: z.string().optional(),
+  storePhotoUrls: z.array(z.string().url()).default([]),
 });
 
 export async function GET() {
@@ -59,9 +61,6 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-
-  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
-  if (!user) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
 
   const store = await prisma.store.create({
     data: {

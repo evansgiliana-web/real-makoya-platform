@@ -4,50 +4,149 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const emailAdmin = process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.com";
-  const passwordAdmin = process.env.SEED_ADMIN_PASSWORD || "Outlook@001";
-  const nameAdmin = process.env.SEED_ADMIN_NAME || "Real Makoya Admin";
+  // ── Super Admin (from .env, so you control the real login credentials) ──
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.co.za";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "ChangeMe123!";
+  const adminName = process.env.SEED_ADMIN_NAME || "Real Makoya Super Admin";
 
-  const emailSuper = process.env.SEED_SUPER_EMAIL || "superadmin@realmakoya.com";
-  const passwordSuper = process.env.SEED_SUPER_PASSWORD || "Outlook@001";
-  const nameSuper = process.env.SEED_SUPER_NAME || "Real Makoya Super Admin";
-
-  // Hash separately
-  const passwordHashAdmin = await bcrypt.hash(passwordAdmin, 12);
-  const passwordHashSuper = await bcrypt.hash(passwordSuper, 12);
-
-  // Seed ADMIN if not exists
-  const existingAdmin = await prisma.user.findUnique({ where: { email: emailAdmin } });
-  if (!existingAdmin) {
-    await prisma.user.create({
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  const superAdmin =
+    existingAdmin ||
+    (await prisma.user.create({
       data: {
-        name: nameAdmin,
-        email: emailAdmin,
-        passwordHash: passwordHashAdmin,
-        role: "ADMIN",
-      },
-    });
-    console.log(`✅ Admin user seeded: ${emailAdmin}`);
-  }
-
-  // Seed SUPER_ADMIN if not exists
-  const existingSuper = await prisma.user.findUnique({ where: { email: emailSuper } });
-  if (!existingSuper) {
-    await prisma.user.create({
-      data: {
-        name: nameSuper,
-        email: emailSuper,
-        passwordHash: passwordHashSuper,
+        name: adminName,
+        email: adminEmail,
+        passwordHash: await bcrypt.hash(adminPassword, 12),
         role: "SUPER_ADMIN",
       },
+    }));
+
+  // ── A sample Field Agent, so you can log in and try the capture flow ──
+  const agent =
+    (await prisma.user.findUnique({ where: { email: "agent@realmakoya.co.za" } })) ||
+    (await prisma.user.create({
+      data: {
+        name: "Thabo Mokoena",
+        email: "agent@realmakoya.co.za",
+        passwordHash: await bcrypt.hash("AgentDemo123!", 12),
+        role: "FIELD_AGENT",
+        invitedById: superAdmin.id,
+      },
+    }));
+
+  // ── A sample FMCG Client login, scoped to two brands ──
+  const client =
+    (await prisma.user.findUnique({ where: { email: "client@tigerbrands-demo.co.za" } })) ||
+    (await prisma.user.create({
+      data: {
+        name: "Demo FMCG Contact",
+        email: "client@tigerbrands-demo.co.za",
+        passwordHash: await bcrypt.hash("ClientDemo123!", 12),
+        role: "CLIENT",
+        companyName: "Demo FMCG Co.",
+        allBrandsAccess: false,
+        invitedById: superAdmin.id,
+        brandAccess: { create: [{ brandName: "Omo" }, { brandName: "Sunlight" }] },
+      },
+    }));
+
+  // ── A sample store with a full assessment, so reports have something to show ──
+  const existingStore = await prisma.store.findFirst({ where: { name: "Thabo's Spaza Shop" } });
+
+  const store =
+    existingStore ||
+    (await prisma.store.create({
+      data: {
+        name: "Thabo's Spaza Shop",
+        tradingAs: "Thabo Tuckshop",
+        address: "12 Vilakazi Street",
+        town: "Soweto",
+        province: "Gauteng",
+        latitude: -26.2485,
+        longitude: 27.9031,
+        ownerName: "Thabo Nkosi",
+        ownerContactNumber: "082 123 4567",
+        ownerIdOrCompanyRegNumber: "8001015009087",
+        municipalRegistrationStatus: "REGISTERED",
+        municipalRegistrationNumber: "JHB-SPZ-004521",
+        registrationNotes: "Registered with City of Johannesburg informal trading unit.",
+        storeTelephoneNumber: "011 987 6543",
+        createdById: superAdmin.id,
+      },
+    }));
+
+  const existingAssessment = await prisma.assessment.findFirst({ where: { storeId: store.id } });
+
+  if (!existingAssessment) {
+    await prisma.assessment.create({
+      data: {
+        storeId: store.id,
+        agentId: agent.id,
+        status: "SUBMITTED",
+
+        productLines: {
+          create: [
+            {
+              category: "Laundry",
+              brand: "Omo",
+              rank: 1,
+              estimatedMonthlyUnits: 1000,
+              estimatedUnitPriceZar: 25.5,
+              notes: "Top seller, restocked weekly.",
+            },
+            {
+              category: "Household Cleaning",
+              brand: "Sunlight",
+              rank: 2,
+              estimatedMonthlyUnits: 66,
+              estimatedUnitPriceZar: 18.0,
+            },
+          ],
+        },
+
+        sourceType: "FORMAL_WHOLESALER",
+        supplierName: "Jumbo Cash & Carry",
+        supplierLocation: "Booysens, Johannesburg",
+        distributionNotes: "Owner collects stock weekly by bakkie.",
+
+        hasValidCoA: true,
+        hasHealthPermit: true,
+        healthPermitNumber: "HP-2026-00812",
+        brandAuthenticityVerified: true,
+
+        counterfeitRisk: "LOW",
+        packagingIssueFlag: false,
+        batchCodeIssueFlag: false,
+        pricingAnomalyFlag: false,
+        counterfeitNotes: "Minor packaging wear on one Omo unit, likely just shelf handling.",
+
+        totalSkuCount: 180,
+        estimatedMonthlyTurnoverZar: 45000,
+
+        packingShelvesCount: 6,
+        posInstalled: true,
+        posBrand: "Yoco",
+        posModel: "Yoco Go",
+        internetConnectivity: "MOBILE_DATA",
+        scannerInstalled: false,
+
+        internalNotes: "Friendly owner, open to a follow-up visit next quarter.",
+      },
     });
-    console.log(`✅ Super Admin user seeded: ${emailSuper}`);
   }
+
+  console.log("──────────────────────────────────────────");
+  console.log("Seed complete. Demo logins:");
+  console.log(`  Super Admin → ${adminEmail} / ${adminPassword}`);
+  console.log("  Field Agent → agent@realmakoya.co.za / AgentDemo123!");
+  console.log("  FMCG Client → client@tigerbrands-demo.co.za / ClientDemo123!");
+  console.log("Change these passwords after your first login.");
+  console.log("──────────────────────────────────────────");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Seed failed:", e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {

@@ -2,11 +2,31 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import ImageUploader from "./ImageUploader";
 
 export default function StoreForm() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoStatus, setGeoStatus] = useState("");
+  const [storePhotos, setStorePhotos] = useState<string[]>([]);
+
+  function captureLocation() {
+    if (!navigator.geolocation) {
+      setGeoStatus("Geolocation isn't supported on this device/browser.");
+      return;
+    }
+    setGeoStatus("Getting location…");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoStatus(`Captured: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+      },
+      () => setGeoStatus("Could not get location — check location permission for this site."),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -26,6 +46,10 @@ export default function StoreForm() {
       municipalRegistrationStatus: form.get("municipalRegistrationStatus"),
       municipalRegistrationNumber: form.get("municipalRegistrationNumber") || undefined,
       registrationNotes: form.get("registrationNotes") || undefined,
+      storeTelephoneNumber: form.get("storeTelephoneNumber") || undefined,
+      latitude: coords?.lat ?? undefined,
+      longitude: coords?.lng ?? undefined,
+      storePhotoUrls: storePhotos,
     };
 
     const res = await fetch("/api/stores", {
@@ -69,6 +93,20 @@ export default function StoreForm() {
           <div>
             <label className="label">Province *</label>
             <input name="province" required className="input" />
+          </div>
+          <div>
+            <label className="label">Store Telephone Number</label>
+            <input name="storeTelephoneNumber" className="input" placeholder="e.g. 011 234 5678" />
+          </div>
+          <div>
+            <label className="label">GPS Location</label>
+            <button type="button" onClick={captureLocation} className="btn-secondary w-full text-sm">
+              📍 Capture current location
+            </button>
+            {geoStatus && <p className="text-xs text-gray-500 mt-1">{geoStatus}</p>}
+          </div>
+          <div className="col-span-2">
+            <ImageUploader label="Store Photos (storefront, signage, interior)" urls={storePhotos} onChange={setStorePhotos} />
           </div>
         </div>
       </section>

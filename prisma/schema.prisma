@@ -37,17 +37,18 @@ model User {
   allBrandsAccess Boolean       @default(true)
   brandAccess     BrandAccess[]
 
-  createdStores      Store[]      @relation("StoreCreatedBy")
-  assessments        Assessment[] @relation("AssessmentAgent")
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  invitedById        String?
+  createdStores Store[]
+  assessments   Assessment[]
+
+  invitedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model BrandAccess {
-  id       String @id @default(cuid())
-  userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String @id @default(cuid())
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   brandName String
 
   @@unique([userId, brandName])
@@ -65,36 +66,52 @@ enum RegistrationStatus {
 }
 
 model Store {
-  id      String @id @default(cuid())
-  name    String
+  id        String @id @default(cuid())
+  name      String
   tradingAs String?
 
   // Location
-  address  String
-  town     String
-  province String
+  address   String
+  town      String
+  province  String
   latitude  Float?
   longitude Float?
 
   // Ownership & registration
-  ownerName                  String
-  ownerContactNumber         String?
-  ownerIdOrCompanyRegNumber  String?
+  ownerName                   String
+  ownerContactNumber          String?
+  ownerIdOrCompanyRegNumber   String?
   municipalRegistrationStatus RegistrationStatus @default(UNKNOWN)
   municipalRegistrationNumber String?
-  registrationNotes          String?
+  registrationNotes           String?
 
   // Store contact & identity media
   storeTelephoneNumber String?
   storePhotoUrls       String[] @default([])
 
+  // Categorized photo gallery (e.g. "Store Front", "Street Pole") —
+  // an alternative/addition to the simple storePhotoUrls array above.
+  // Not yet wired into the capture forms or API — tell me if you want
+  // to switch to this instead of (or alongside) storePhotoUrls.
+  images Image[]
+
   createdById String
-  createdBy   User   @relation("StoreCreatedBy", fields: [createdById], references: [id])
+  createdBy   User   @relation(fields: [createdById], references: [id])
 
   assessments Assessment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Image {
+  id         String   @id @default(cuid())
+  category   String   // e.g. "Store Front", "Street Pole"
+  url        String   // file path or cloud URL
+  storeId    String
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  capturedAt DateTime @default(now())
+  capturedBy String
 }
 
 // ──────────────────────────────────────────────
@@ -132,56 +149,56 @@ enum InternetConnectivity {
 }
 
 model Assessment {
-  id        String   @id @default(cuid())
-  storeId   String
-  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  agentId   String
-  agent     User     @relation("AssessmentAgent", fields: [agentId], references: [id])
+  agentId String
+  agent   User   @relation(fields: [agentId], references: [id])
 
-  visitDate DateTime @default(now())
+  visitDate DateTime         @default(now())
   status    AssessmentStatus @default(SUBMITTED)
 
   // ── Top-selling product lines ──
   productLines ProductLine[]
 
   // ── Trade & distribution routes ──
-  sourceType         SourceType
-  supplierName       String?
-  supplierLocation   String?
-  distributionNotes  String?
+  sourceType        SourceType
+  supplierName      String?
+  supplierLocation  String?
+  distributionNotes String?
 
   // ── Compliance & CoA verification ──
-  hasValidCoA              Boolean  @default(false)
-  coaNotes                 String?
-  hasHealthPermit          Boolean  @default(false)
-  healthPermitNumber       String?
-  healthPermitExpiry       DateTime?
-  brandAuthenticityVerified Boolean @default(false)
-  complianceNotes          String?
+  hasValidCoA               Boolean   @default(false)
+  coaNotes                  String?
+  hasHealthPermit           Boolean   @default(false)
+  healthPermitNumber        String?
+  healthPermitExpiry        DateTime?
+  brandAuthenticityVerified Boolean   @default(false)
+  complianceNotes           String?
 
   // ── Counterfeit screening ──
-  counterfeitRisk        CounterfeitRisk @default(NONE)
-  packagingIssueFlag     Boolean @default(false)
-  batchCodeIssueFlag     Boolean @default(false)
-  pricingAnomalyFlag     Boolean @default(false)
-  counterfeitNotes       String?
-  photoUrls              String[] @default([])
+  counterfeitRisk    CounterfeitRisk @default(NONE)
+  packagingIssueFlag Boolean         @default(false)
+  batchCodeIssueFlag Boolean         @default(false)
+  pricingAnomalyFlag Boolean         @default(false)
+  counterfeitNotes   String?
+  photoUrls          String[]        @default([])
 
   // ── Commercial metrics ──
   totalSkuCount               Int?
   estimatedMonthlyTurnoverZar Float?
 
   // ── Store infrastructure & equipment ──
-  packingShelvesCount   Int?
-  posInstalled          Boolean @default(false)
-  posBrand              String?
-  posModel              String?
-  posPhotoUrls          String[] @default([])
-  internetConnectivity  InternetConnectivity @default(UNKNOWN)
-  scannerInstalled      Boolean @default(false)
-  scannerDetails        String?
-  equipmentPhotoUrls    String[] @default([])
+  packingShelvesCount  Int?
+  posInstalled         Boolean              @default(false)
+  posBrand             String?
+  posModel             String?
+  posPhotoUrls         String[]             @default([])
+  internetConnectivity InternetConnectivity @default(UNKNOWN)
+  scannerInstalled     Boolean              @default(false)
+  scannerDetails       String?
+  equipmentPhotoUrls   String[]             @default([])
 
   internalNotes String? // visible to agency staff only, never shown to CLIENT role
 
@@ -190,13 +207,13 @@ model Assessment {
 }
 
 model ProductLine {
-  id                    String @id @default(cuid())
-  assessmentId          String
-  assessment            Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  id           String     @id @default(cuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  category              String   // e.g. "Beverages", "Snacks", "Personal Care"
-  brand                 String   // e.g. "Coca-Cola", "Omo", "Lay's"
-  rank                  Int?     // 1 = top seller at this store
+  category              String  // e.g. "Beverages", "Snacks", "Personal Care"
+  brand                 String  // e.g. "Coca-Cola", "Omo", "Lay's"
+  rank                  Int?    // 1 = top seller at this store
   estimatedMonthlyUnits Int?
   estimatedUnitPriceZar Float?
   notes                 String?
