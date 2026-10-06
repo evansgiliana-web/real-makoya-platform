@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
+
 import TopNav from "@/components/TopNav";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
