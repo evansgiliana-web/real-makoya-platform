@@ -27,12 +27,21 @@ export const authOptions: NextAuthOptions = {
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!valid) return null;
 
+        let organizationName: string | undefined;
+        if (user.role === "CLIENT") {
+          const membership = await prisma.orgMembership.findFirst({
+            where: { userId: user.id },
+            include: { organization: { select: { name: true } } },
+          });
+          organizationName = membership?.organization.name;
+        }
+
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
-          companyName: user.companyName ?? undefined,
+          companyName: organizationName,
         };
       },
     }),

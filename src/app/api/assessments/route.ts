@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit";
 import { sendHighRiskAlert } from "@/lib/email";
+import { matchBrandIds } from "@/lib/brandMatch";
 import { z } from "zod";
 
 const productLineSchema = z.object({
@@ -77,6 +78,11 @@ export async function POST(req: NextRequest) {
   // New assessments start as SUBMITTED (pending QA). Only Admin can set REVIEWED.
   const status = rest.status === "DRAFT" ? "DRAFT" : "SUBMITTED";
 
+  // Link each typed brand name to the Brand catalog when it matches a
+  // partnered brand — unmatched names (competitors, not-yet-partnered
+  // brands) stay as plain text, which is still useful demand data.
+  const brandIdByName = await matchBrandIds(productLines.map((p) => p.brand));
+
   const assessment = await prisma.assessment.create({
     data: {
       ...rest,
@@ -89,6 +95,7 @@ export async function POST(req: NextRequest) {
         create: productLines.map((p) => ({
           category: p.category,
           brand: p.brand,
+          brandId: brandIdByName[p.brand.trim()] ?? null,
           rank: p.rank ?? null,
           estimatedMonthlyUnits: p.estimatedMonthlyUnits ?? null,
           estimatedUnitPriceZar: p.estimatedUnitPriceZar ?? null,

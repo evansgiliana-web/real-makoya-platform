@@ -13,6 +13,7 @@ export type Permission =
   | "assessment:edit"
   | "assessment:review" // Admin/Super Admin only — separation of duties
   | "user:manage"
+  | "org:manage" // create/edit FMCG Organizations, Brands, and onboard the first Owner
   | "report:view"
   | "report:view-internal-notes"
   | "export:raw-data";
@@ -27,6 +28,7 @@ const PERMISSIONS: Record<Role, Permission[]> = {
     "assessment:edit",
     "assessment:review",
     "user:manage",
+    "org:manage",
     "report:view",
     "report:view-internal-notes",
     "export:raw-data",
@@ -40,6 +42,7 @@ const PERMISSIONS: Record<Role, Permission[]> = {
     "assessment:edit",
     "assessment:review",
     "user:manage",
+    "org:manage",
     "report:view",
     "report:view-internal-notes",
     "export:raw-data",
@@ -62,6 +65,13 @@ export function requirePermission(role: Role, permission: Permission) {
   if (!can(role, permission)) {
     throw new Error(`Role ${role} lacks permission ${permission}`);
   }
+}
+
+// Org-level permissions depend on a specific OrgMembership row, not just
+// the user's platform-wide Role, so they live here as a plain function
+// rather than in the PERMISSIONS table above.
+export function isOrgOwner(orgRole: string | undefined | null): boolean {
+  return orgRole === "OWNER";
 }
 
 export const ROLE_LABELS: Record<Role, string> = {

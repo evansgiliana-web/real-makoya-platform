@@ -2,11 +2,10 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function UserForm({ canCreateAdmins }: { canCreateAdmins: boolean }) {
   const router = useRouter();
-  const [role, setRole] = useState("FIELD_AGENT");
-  const [allBrandsAccess, setAllBrandsAccess] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,19 +17,11 @@ export default function UserForm({ canCreateAdmins }: { canCreateAdmins: boolean
     setLoading(true);
 
     const form = new FormData(e.currentTarget);
-    const brandAccessRaw = String(form.get("brandAccess") || "");
-
     const payload = {
       name: form.get("name"),
       email: form.get("email"),
       password: form.get("password"),
-      role,
-      companyName: form.get("companyName") || undefined,
-      allBrandsAccess,
-      brandAccess: brandAccessRaw
-        .split(",")
-        .map((b) => b.trim())
-        .filter(Boolean),
+      role: form.get("role"),
     };
 
     const res = await fetch("/api/users", {
@@ -68,7 +59,7 @@ export default function UserForm({ canCreateAdmins }: { canCreateAdmins: boolean
       </div>
       <div>
         <label className="label">Access Level (Role) *</label>
-        <select value={role} onChange={(e) => setRole(e.target.value)} className="input">
+        <select name="role" defaultValue="FIELD_AGENT" className="input">
           <option value="FIELD_AGENT">Field Agent — capture only</option>
           <option value="ADMIN" disabled={!canCreateAdmins}>
             Agency Admin — full internal access
@@ -76,7 +67,6 @@ export default function UserForm({ canCreateAdmins }: { canCreateAdmins: boolean
           <option value="SUPER_ADMIN" disabled={!canCreateAdmins}>
             Super Admin — full platform control
           </option>
-          <option value="CLIENT">FMCG Client — read-only reports</option>
         </select>
         {!canCreateAdmins && (
           <p className="text-xs text-gray-400 mt-1">
@@ -85,32 +75,13 @@ export default function UserForm({ canCreateAdmins }: { canCreateAdmins: boolean
         )}
       </div>
 
-      {role === "CLIENT" && (
-        <div className="rounded-lg bg-brand-50 p-3 space-y-3">
-          <div>
-            <label className="label">FMCG Company Name</label>
-            <input name="companyName" className="input" placeholder="e.g. Tiger Brands" />
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={allBrandsAccess}
-              onChange={(e) => setAllBrandsAccess(e.target.checked)}
-              className="h-4 w-4"
-            />
-            Full market access (all brands & stores)
-          </label>
-          {!allBrandsAccess && (
-            <div>
-              <label className="label">Restrict to Brands (comma-separated)</label>
-              <input name="brandAccess" className="input" placeholder="e.g. Omo, Sunlight, Jik" />
-              <p className="text-xs text-gray-400 mt-1">
-                This client will only see report data tied to these brand names.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+      <p className="text-xs text-gray-500 bg-brand-50 rounded-lg px-3 py-2">
+        Setting up an FMCG client login? Use{" "}
+        <Link href="/dashboard/organizations" className="text-brand-700 font-medium underline">
+          Organizations →
+        </Link>{" "}
+        instead — client accounts need to belong to a company and brand(s).
+      </p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {success && <p className="text-sm text-green-600">{success}</p>}

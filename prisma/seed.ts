@@ -34,21 +34,43 @@ async function main() {
       },
     }));
 
-  // ── A sample FMCG Client login, scoped to two brands ──
-  const client =
-    (await prisma.user.findUnique({ where: { email: "client@tigerbrands-demo.co.za" } })) ||
-    (await prisma.user.create({
+  // ── A demo FMCG Organization with two brands and one Owner login ──
+  let org = await prisma.organization.findFirst({ where: { name: "Demo FMCG Co." } });
+  if (!org) {
+    org = await prisma.organization.create({
       data: {
-        name: "Demo FMCG Contact",
-        email: "client@tigerbrands-demo.co.za",
-        passwordHash: await bcrypt.hash("ClientDemo123!", 12),
-        role: "CLIENT",
-        companyName: "Demo FMCG Co.",
-        allBrandsAccess: false,
-        invitedById: superAdmin.id,
-        brandAccess: { create: [{ brandName: "Omo" }, { brandName: "Sunlight" }] },
+        name: "Demo FMCG Co.",
+        brands: {
+          create: [
+            { name: "Omo", category: "Laundry" },
+            { name: "Sunlight", category: "Household Cleaning" },
+          ],
+        },
       },
-    }));
+    });
+  }
+
+  const existingOwner = await prisma.user.findUnique({
+    where: { email: "client@tigerbrands-demo.co.za" },
+  });
+  if (!existingOwner) {
+    await prisma.orgMembership.create({
+      data: {
+        organizationId: org.id,
+        orgRole: "OWNER",
+        allBrandsAccess: true,
+        user: {
+          create: {
+            name: "Demo FMCG Contact",
+            email: "client@tigerbrands-demo.co.za",
+            passwordHash: await bcrypt.hash("ClientDemo123!", 12),
+            role: "CLIENT",
+            invitedById: superAdmin.id,
+          },
+        },
+      },
+    });
+  }
 
   // ── A sample store with a full assessment, so reports have something to show ──
   const existingStore = await prisma.store.findFirst({ where: { name: "Thabo's Spaza Shop" } });
@@ -71,6 +93,11 @@ async function main() {
         municipalRegistrationNumber: "JHB-SPZ-004521",
         registrationNotes: "Registered with City of Johannesburg informal trading unit.",
         storeTelephoneNumber: "011 987 6543",
+        ownerConsentGiven: true,
+        ownerConsentAt: new Date(),
+        ownerConsentById: superAdmin.id,
+        visitCadenceDays: 90,
+        nextVisitDue: new Date(Date.now() + 90 * 86400000),
         createdById: superAdmin.id,
       },
     }));
@@ -78,17 +105,24 @@ async function main() {
   const existingAssessment = await prisma.assessment.findFirst({ where: { storeId: store.id } });
 
   if (!existingAssessment) {
+    const brands = await prisma.brand.findMany({ where: { organizationId: org.id } });
+    const omoId = brands.find((b) => b.name === "Omo")?.id ?? null;
+    const sunlightId = brands.find((b) => b.name === "Sunlight")?.id ?? null;
+
     await prisma.assessment.create({
       data: {
         storeId: store.id,
         agentId: agent.id,
-        status: "SUBMITTED",
+        status: "REVIEWED",
+        reviewedById: superAdmin.id,
+        reviewedAt: new Date(),
 
         productLines: {
           create: [
             {
               category: "Laundry",
               brand: "Omo",
+              brandId: omoId,
               rank: 1,
               estimatedMonthlyUnits: 1000,
               estimatedUnitPriceZar: 25.5,
@@ -97,6 +131,7 @@ async function main() {
             {
               category: "Household Cleaning",
               brand: "Sunlight",
+              brandId: sunlightId,
               rank: 2,
               estimatedMonthlyUnits: 66,
               estimatedUnitPriceZar: 18.0,

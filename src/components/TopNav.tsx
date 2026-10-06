@@ -26,7 +26,9 @@ export default function TopNav({ role, name, email }: Props) {
     isAgency && { href: "/dashboard", label: "Dashboard" },
     isAgency && { href: "/dashboard/stores", label: "Stores" },
     { href: "/dashboard/reports", label: role === "CLIENT" ? "Reports" : "Client Reports" },
-    isManager && { href: "/dashboard/users", label: "Users" },
+    isManager && { href: "/dashboard/organizations", label: "Organizations" },
+    isManager && { href: "/dashboard/users", label: "Staff" },
+    role === "CLIENT" && { href: "/dashboard/team", label: "My Team" },
   ].filter(Boolean) as { href: string; label: string }[];
 
   return (
