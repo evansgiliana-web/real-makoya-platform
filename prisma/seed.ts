@@ -1,5 +1,22 @@
-import { PrismaClient } from "@prisma/client";
+/**
+ * Real Makoya — database seed
+ *
+ * Matches schema: Organization, Brand, OrgMembership, OrgRole, Role
+ *
+ * Run locally (or against prod DB once):
+ *   npx prisma generate
+ *   npx prisma db push
+ *   npm run db:seed
+ *
+ * Do NOT run this during the Vercel build.
+ */
+import { PrismaClient, Role, OrgRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+
+declare const process: {
+  env: Record<string, string | undefined>;
+  exit: (code?: number) => void;
+};
 
 const prisma = new PrismaClient();
 
@@ -12,6 +29,7 @@ async function main() {
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || "ChangeMe123!";
   const adminName = process.env.SEED_ADMIN_NAME || "Real Makoya Super Admin";
 
+  // ── Super Admin ────────────────────────────────────────────────────
   let superAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
   if (!superAdmin) {
     superAdmin = await prisma.user.create({
@@ -19,7 +37,7 @@ async function main() {
         name: adminName,
         email: adminEmail,
         passwordHash: await bcrypt.hash(adminPassword, 12),
-        role: "SUPER_ADMIN",
+        role: Role.SUPER_ADMIN,
         active: true,
       },
     });
@@ -28,6 +46,7 @@ async function main() {
     console.log("[seed] Super admin OK:", adminEmail);
   }
 
+  // ── Field Agent ────────────────────────────────────────────────────
   let agent = await prisma.user.findUnique({
     where: { email: "agent@realmakoya.co.za" },
   });
@@ -37,7 +56,7 @@ async function main() {
         name: "Thabo Mokoena",
         email: "agent@realmakoya.co.za",
         passwordHash: await bcrypt.hash("AgentDemo123!", 12),
-        role: "FIELD_AGENT",
+        role: Role.FIELD_AGENT,
         active: true,
         invitedById: superAdmin.id,
       },
@@ -47,11 +66,12 @@ async function main() {
     console.log("[seed] Field agent OK");
   }
 
-  // Organization + brands
+  // ── Organization + brands ──────────────────────────────────────────
   let org = await prisma.organization.findFirst({
     where: { name: "Tiger Brands (Demo)" },
     include: { brands: true },
   });
+
   if (!org) {
     org = await prisma.organization.create({
       data: {
@@ -67,9 +87,8 @@ async function main() {
       },
       include: { brands: true },
     });
-    console.log("[seed] Created organization Tiger Brands (Demo)");
+    console.log("[seed] Created organization: Tiger Brands (Demo)");
   } else {
-    // Ensure core brands exist
     for (const [name, category] of [
       ["Omo", "Laundry"],
       ["Sunlight", "Household Cleaning"],
@@ -97,35 +116,32 @@ async function main() {
   const sunlightId = org.brands.find((b) => b.name === "Sunlight")?.id;
   const analystBrandIds = [omoId, sunlightId].filter(Boolean) as string[];
 
-  async function ensureClient(
-    email: string,
-    name: string
-  ): Promise<{ id: string; email: string }> {
+  async function ensureClient(email: string, name: string) {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (!existing) {
-      const u = await prisma.user.create({
+      const created = await prisma.user.create({
         data: {
           name,
           email,
           passwordHash: clientHash,
-          role: "CLIENT",
+          role: Role.CLIENT,
           active: true,
           invitedById: superAdmin!.id,
         },
       });
       console.log("[seed] Created CLIENT:", email);
-      return u;
+      return created;
     }
-    const u = await prisma.user.update({
+    const updated = await prisma.user.update({
       where: { id: existing.id },
       data: {
         passwordHash: clientHash,
-        role: "CLIENT",
+        role: Role.CLIENT,
         active: true,
       },
     });
     console.log("[seed] Reset CLIENT password:", email);
-    return u;
+    return updated;
   }
 
   const owner = await ensureClient("admin@tigerbrands-demo.co.za", "Tiger Org Admin");
@@ -134,7 +150,7 @@ async function main() {
     "Demo Brand Analyst"
   );
 
-  // OWNER membership — all brands
+  // ── OWNER membership (all brands) ──────────────────────────────────
   const ownerMem = await prisma.orgMembership.findFirst({
     where: { userId: owner.id, organizationId: org.id },
   });
@@ -143,7 +159,7 @@ async function main() {
       data: {
         userId: owner.id,
         organizationId: org.id,
-        orgRole: "OWNER",
+        orgRole: OrgRole.OWNER,
         allBrandsAccess: true,
         brandIds: [],
       },
@@ -152,11 +168,14 @@ async function main() {
   } else {
     await prisma.orgMembership.update({
       where: { id: ownerMem.id },
-      data: { orgRole: "OWNER", allBrandsAccess: true },
+      data: {
+        orgRole: OrgRole.OWNER,
+        allBrandsAccess: true,
+      },
     });
   }
 
-  // MEMBER membership — Omo + Sunlight only
+  // ── MEMBER membership (Omo + Sunlight only) ────────────────────────
   const memberMem = await prisma.orgMembership.findFirst({
     where: { userId: member.id, organizationId: org.id },
   });
@@ -165,7 +184,7 @@ async function main() {
       data: {
         userId: member.id,
         organizationId: org.id,
-        orgRole: "MEMBER",
+        orgRole: OrgRole.MEMBER,
         allBrandsAccess: false,
         brandIds: analystBrandIds,
       },
@@ -175,14 +194,14 @@ async function main() {
     await prisma.orgMembership.update({
       where: { id: memberMem.id },
       data: {
-        orgRole: "MEMBER",
+        orgRole: OrgRole.MEMBER,
         allBrandsAccess: false,
         brandIds: analystBrandIds,
       },
     });
   }
 
-  // Sample store
+  // ── Sample store ───────────────────────────────────────────────────
   let store = await prisma.store.findFirst({
     where: { name: "Thabo's Spaza Shop" },
   });
@@ -213,6 +232,7 @@ async function main() {
     console.log("[seed] Created sample store");
   }
 
+  // ── Sample REVIEWED assessment ─────────────────────────────────────
   const existingAssessment = await prisma.assessment.findFirst({
     where: { storeId: store.id },
   });
