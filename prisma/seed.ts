@@ -1,5 +1,6 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
+
 
 const prisma = new PrismaClient();
 
@@ -35,7 +36,10 @@ async function main() {
     }));
 
   // ── A demo FMCG Organization with two brands and one Owner login ──
-  let org = await prisma.organization.findFirst({ where: { name: "Demo FMCG Co." } });
+  let org = await prisma.organization.findFirst({
+    where: { name: "Demo FMCG Co." },
+    include: { brands: true },
+  });
   if (!org) {
     org = await prisma.organization.create({
       data: {
@@ -47,6 +51,7 @@ async function main() {
           ],
         },
       },
+      include: { brands: true },
     });
   }
 
@@ -54,7 +59,7 @@ async function main() {
     where: { email: "client@tigerbrands-demo.co.za" },
   });
   if (!existingOwner) {
-    await prisma.orgMembership.create({
+    await prisma.OrganizationMembership.create({
       data: {
         organizationId: org.id,
         orgRole: "OWNER",
@@ -105,9 +110,9 @@ async function main() {
   const existingAssessment = await prisma.assessment.findFirst({ where: { storeId: store.id } });
 
   if (!existingAssessment) {
-    const brands = await prisma.brand.findMany({ where: { organizationId: org.id } });
-    const omoId = brands.find((b) => b.name === "Omo")?.id ?? null;
-    const sunlightId = brands.find((b) => b.name === "Sunlight")?.id ?? null;
+    const brands = org.brands;
+    const omoId = brands.find((b: { id: string; name: string }) => b.name === "Omo")?.id ?? null;
+    const sunlightId = brands.find((b: { id: string; name: string }) => b.name === "Sunlight")?.id ?? null;
 
     await prisma.assessment.create({
       data: {
