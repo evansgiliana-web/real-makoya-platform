@@ -1,0 +1,288 @@
+// Real Makoya Agency — Retail Intelligence & Compliance Platform
+// Canonical schema (aligned with app code + migration v4_2)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────
+// USERS & ACCESS CONTROL
+// ──────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  FIELD_AGENT
+  CLIENT
+}
+
+model User {
+  id           String  @id @default(cuid())
+  name         String
+  email        String  @unique
+  passwordHash String
+  role         Role
+  active       Boolean @default(true)
+
+  // CLIENT users join FMCG companies via OrgMembership
+  orgMemberships OrgMembership[]
+
+  createdStores Store[]
+  assessments   Assessment[]
+  auditLogs     AuditLog[]
+
+  invitedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ──────────────────────────────────────────────
+// FMCG ORGANIZATIONS, BRANDS & TEAM MEMBERSHIP
+// ──────────────────────────────────────────────
+
+model Organization {
+  id      String  @id @default(cuid())
+  name    String
+  logoUrl String?
+
+  brands      Brand[]
+  memberships OrgMembership[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Brand {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  category       String?
+
+  productLines ProductLine[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([organizationId, name])
+}
+
+enum OrgRole {
+  OWNER  // invite/remove teammates, manage brand access
+  MEMBER // read-only, scoped to brandIds when allBrandsAccess is false
+}
+
+model OrgMembership {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  orgRole         OrgRole  @default(MEMBER)
+  allBrandsAccess Boolean  @default(true)
+  brandIds        String[] @default([]) // used when allBrandsAccess is false
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, organizationId])
+}
+
+// ──────────────────────────────────────────────
+// STORE
+// ──────────────────────────────────────────────
+
+enum RegistrationStatus {
+  REGISTERED
+  PENDING
+  UNREGISTERED
+  UNKNOWN
+}
+
+model Store {
+  id        String  @id @default(cuid())
+  name      String
+  tradingAs String?
+
+  address   String
+  town      String
+  province  String
+  latitude  Float?
+  longitude Float?
+
+  ownerName                   String
+  ownerContactNumber          String?
+  ownerIdOrCompanyRegNumber   String?
+  municipalRegistrationStatus RegistrationStatus @default(UNKNOWN)
+  municipalRegistrationNumber String?
+  registrationNotes           String?
+
+  storeTelephoneNumber String?
+  storePhotoUrls       String[] @default([])
+
+  images Image[]
+
+  ownerConsentGiven Boolean   @default(false)
+  ownerConsentAt    DateTime?
+  ownerConsentById  String?
+  piiRedacted       Boolean   @default(false)
+  piiRedactedAt     DateTime?
+  piiRedactedById   String?
+
+  nextVisitDue     DateTime?
+  visitCadenceDays Int       @default(90)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  assessments Assessment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Image {
+  id         String   @id @default(cuid())
+  category   String
+  url        String
+  storeId    String
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  capturedAt DateTime @default(now())
+  capturedBy String
+}
+
+// ──────────────────────────────────────────────
+// ASSESSMENT
+// ──────────────────────────────────────────────
+
+enum SourceType {
+  FORMAL_WHOLESALER
+  INFORMAL_BULK_BUYER
+  UNVERIFIED_SUPPLIER
+  MIXED
+}
+
+enum CounterfeitRisk {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  CONFIRMED_COUNTERFEIT
+}
+
+enum AssessmentStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  FLAGGED
+}
+
+enum InternetConnectivity {
+  NONE
+  MOBILE_DATA
+  WIFI
+  FIBER
+  UNKNOWN
+}
+
+model Assessment {
+  id      String @id @default(cuid())
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  agentId String
+  agent   User   @relation(fields: [agentId], references: [id])
+
+  visitDate DateTime         @default(now())
+  status    AssessmentStatus @default(SUBMITTED)
+
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewNotes  String?
+
+  productLines ProductLine[]
+
+  sourceType        SourceType
+  supplierName      String?
+  supplierLocation  String?
+  distributionNotes String?
+
+  hasValidCoA               Boolean   @default(false)
+  coaNotes                  String?
+  hasHealthPermit           Boolean   @default(false)
+  healthPermitNumber        String?
+  healthPermitExpiry        DateTime?
+  brandAuthenticityVerified Boolean   @default(false)
+  complianceNotes           String?
+
+  counterfeitRisk    CounterfeitRisk @default(NONE)
+  packagingIssueFlag Boolean         @default(false)
+  batchCodeIssueFlag Boolean         @default(false)
+  pricingAnomalyFlag Boolean         @default(false)
+  counterfeitNotes   String?
+  photoUrls          String[]        @default([])
+
+  totalSkuCount               Int?
+  estimatedMonthlyTurnoverZar Float?
+
+  packingShelvesCount  Int?
+  posInstalled         Boolean              @default(false)
+  posBrand             String?
+  posModel             String?
+  posPhotoUrls         String[]             @default([])
+  internetConnectivity InternetConnectivity @default(UNKNOWN)
+  scannerInstalled     Boolean              @default(false)
+  scannerDetails       String?
+  equipmentPhotoUrls   String[]             @default([])
+
+  internalNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProductLine {
+  id           String     @id @default(cuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  category              String
+  brand                 String
+  rank                  Int?
+  estimatedMonthlyUnits Int?
+  estimatedUnitPriceZar Float?
+  notes                 String?
+
+  brandId  String?
+  brandRef Brand?  @relation(fields: [brandId], references: [id], onDelete: SetNull)
+}
+
+// ──────────────────────────────────────────────
+// AUDIT LOG
+// ──────────────────────────────────────────────
+
+model AuditLog {
+  id         String  @id @default(cuid())
+  actorId    String?
+  actor      User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorEmail String?
+  actorRole  String?
+
+  action     String
+  entityType String
+  entityId   String
+
+  beforeJson String?
+  afterJson  String?
+  metaJson   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+}
