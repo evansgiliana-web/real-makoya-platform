@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, FormEvent } from "react";
 
@@ -15,17 +15,29 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
+
     const res = await signIn("credentials", {
-      email,
+      email: email.toLowerCase().trim(),
       password,
       redirect: false,
     });
-    setLoading(false);
+
     if (res?.error) {
+      setLoading(false);
       setError("Invalid email or password.");
       return;
     }
-    router.push("/dashboard");
+
+    const session = await getSession();
+    const role = (session?.user as { role?: string } | undefined)?.role;
+    setLoading(false);
+
+    // Clients land on reports; agency staff on ops dashboard
+    if (role === "CLIENT") {
+      router.replace("/dashboard/reports");
+    } else {
+      router.replace("/dashboard");
+    }
     router.refresh();
   }
 
@@ -46,10 +58,10 @@ export default function LoginPage() {
             <input
               type="email"
               required
+              autoComplete="email"
               className="input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
             />
           </div>
           <div>
@@ -57,24 +69,20 @@ export default function LoginPage() {
             <input
               type="password"
               required
+              autoComplete="current-password"
               className="input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
             />
           </div>
-
           {error && <p className="text-sm text-red-600">{error}</p>}
-
           <button type="submit" disabled={loading} className="btn-primary w-full">
             {loading ? "Signing in…" : "Sign in"}
           </button>
-
-          <p className="text-xs text-gray-500 text-center pt-2">
-            Accounts are created by your administrator. Contact Real Makoya Agency
-            support if you need access.
-          </p>
         </form>
+        <p className="text-center text-brand-100/70 text-xs mt-4">
+          Accounts are created by your administrator.
+        </p>
       </div>
     </main>
   );

@@ -1,5 +1,5 @@
 // Real Makoya Agency — Retail Intelligence & Compliance Platform
-// Database schema (Phase 1: POPIA, QA review, visit cadence, audit log)
+// Canonical schema (aligned with app code + migration v4_2)
 
 generator client {
   provider = "prisma-client-js"
@@ -15,23 +15,21 @@ datasource db {
 // ──────────────────────────────────────────────
 
 enum Role {
-  SUPER_ADMIN  // Full platform control, manages all users & data
-  ADMIN        // Real Makoya agency management: manages field agents, stores, clients
-  FIELD_AGENT  // Field capture only: can create/edit stores & assessments
-  CLIENT       // FMCG company: read-only access to professional reports
+  SUPER_ADMIN
+  ADMIN
+  FIELD_AGENT
+  CLIENT
 }
 
 model User {
-  id            String   @id @default(cuid())
-  name          String
-  email         String   @unique
-  passwordHash  String
-  role          Role
-  active        Boolean  @default(true)
+  id           String  @id @default(cuid())
+  name         String
+  email        String  @unique
+  passwordHash String
+  role         Role
+  active       Boolean @default(true)
 
-  // CLIENT-role users belong to an FMCG Organization through this. A user
-  // normally has exactly one membership; the model allows more in case an
-  // agency contact genuinely represents two companies.
+  // CLIENT users join FMCG companies via OrgMembership
   orgMemberships OrgMembership[]
 
   createdStores Store[]
@@ -47,7 +45,6 @@ model User {
 // FMCG ORGANIZATIONS, BRANDS & TEAM MEMBERSHIP
 // ──────────────────────────────────────────────
 
-// An FMCG company, e.g. "Coca-Cola South Africa". Owns one or more Brands.
 model Organization {
   id      String  @id @default(cuid())
   name    String
@@ -60,9 +57,6 @@ model Organization {
   updatedAt DateTime @updatedAt
 }
 
-// A single brand under an Organization, e.g. "Coke", "Fanta", "Sprite".
-// `category` groups brands for anonymized cross-brand benchmarking
-// (e.g. "Soft Drinks") without ever exposing one client's raw data to another.
 model Brand {
   id             String       @id @default(cuid())
   organizationId String
@@ -78,13 +72,10 @@ model Brand {
 }
 
 enum OrgRole {
-  OWNER  // can invite/remove teammates and manage brand access for the org
-  MEMBER // read-only, scoped to the brands granted below
+  OWNER  // invite/remove teammates, manage brand access
+  MEMBER // read-only, scoped to brandIds when allBrandsAccess is false
 }
 
-// Joins a User to an Organization with their own role and brand scope —
-// this is what lets one FMCG company have many people, each seeing only
-// the brands relevant to their job.
 model OrgMembership {
   id             String       @id @default(cuid())
   userId         String
@@ -94,7 +85,7 @@ model OrgMembership {
 
   orgRole         OrgRole  @default(MEMBER)
   allBrandsAccess Boolean  @default(true)
-  brandIds        String[] @default([]) // only used when allBrandsAccess is false
+  brandIds        String[] @default([]) // used when allBrandsAccess is false
 
   createdAt DateTime @default(now())
 
@@ -102,7 +93,7 @@ model OrgMembership {
 }
 
 // ──────────────────────────────────────────────
-// STORE — Ownership & Registration
+// STORE
 // ──────────────────────────────────────────────
 
 enum RegistrationStatus {
@@ -113,18 +104,16 @@ enum RegistrationStatus {
 }
 
 model Store {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   name      String
   tradingAs String?
 
-  // Location
   address   String
   town      String
   province  String
   latitude  Float?
   longitude Float?
 
-  // Ownership & registration
   ownerName                   String
   ownerContactNumber          String?
   ownerIdOrCompanyRegNumber   String?
@@ -132,26 +121,20 @@ model Store {
   municipalRegistrationNumber String?
   registrationNotes           String?
 
-  // Store contact & identity media
   storeTelephoneNumber String?
   storePhotoUrls       String[] @default([])
 
-  // Categorized photo gallery
   images Image[]
 
-  // ── POPIA / data protection ──
-  // Consent must be obtained at capture time before storing owner PII
-  ownerConsentGiven   Boolean   @default(false)
-  ownerConsentAt      DateTime?
-  ownerConsentById    String?   // user id who recorded consent
-  // Soft-redaction: PII fields cleared, flag set, original values not recoverable via app
-  piiRedacted         Boolean   @default(false)
-  piiRedactedAt       DateTime?
-  piiRedactedById     String?
+  ownerConsentGiven Boolean   @default(false)
+  ownerConsentAt    DateTime?
+  ownerConsentById  String?
+  piiRedacted       Boolean   @default(false)
+  piiRedactedAt     DateTime?
+  piiRedactedById   String?
 
-  // ── Visit cadence ──
-  nextVisitDue        DateTime?
-  visitCadenceDays    Int       @default(90) // default 3-month revisit
+  nextVisitDue     DateTime?
+  visitCadenceDays Int       @default(90)
 
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
@@ -164,8 +147,8 @@ model Store {
 
 model Image {
   id         String   @id @default(cuid())
-  category   String   // e.g. "Store Front", "Street Pole"
-  url        String   // file path or cloud URL
+  category   String
+  url        String
   storeId    String
   store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   capturedAt DateTime @default(now())
@@ -173,7 +156,7 @@ model Image {
 }
 
 // ──────────────────────────────────────────────
-// ASSESSMENT — one field-capture visit
+// ASSESSMENT
 // ──────────────────────────────────────────────
 
 enum SourceType {
@@ -217,22 +200,17 @@ model Assessment {
   visitDate DateTime         @default(now())
   status    AssessmentStatus @default(SUBMITTED)
 
-  // ── QA / Review layer ──
-  // Client reports only count assessments with status = REVIEWED
-  reviewedAt     DateTime?
-  reviewedById   String?
-  reviewNotes    String?
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewNotes  String?
 
-  // ── Top-selling product lines ──
   productLines ProductLine[]
 
-  // ── Trade & distribution routes ──
   sourceType        SourceType
   supplierName      String?
   supplierLocation  String?
   distributionNotes String?
 
-  // ── Compliance & CoA verification ──
   hasValidCoA               Boolean   @default(false)
   coaNotes                  String?
   hasHealthPermit           Boolean   @default(false)
@@ -241,7 +219,6 @@ model Assessment {
   brandAuthenticityVerified Boolean   @default(false)
   complianceNotes           String?
 
-  // ── Counterfeit screening ──
   counterfeitRisk    CounterfeitRisk @default(NONE)
   packagingIssueFlag Boolean         @default(false)
   batchCodeIssueFlag Boolean         @default(false)
@@ -249,11 +226,9 @@ model Assessment {
   counterfeitNotes   String?
   photoUrls          String[]        @default([])
 
-  // ── Commercial metrics ──
   totalSkuCount               Int?
   estimatedMonthlyTurnoverZar Float?
 
-  // ── Store infrastructure & equipment ──
   packingShelvesCount  Int?
   posInstalled         Boolean              @default(false)
   posBrand             String?
@@ -264,7 +239,7 @@ model Assessment {
   scannerDetails       String?
   equipmentPhotoUrls   String[]             @default([])
 
-  internalNotes String? // visible to agency staff only, never shown to CLIENT role
+  internalNotes String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -275,41 +250,37 @@ model ProductLine {
   assessmentId String
   assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  category              String  // e.g. "Beverages", "Snacks", "Personal Care"
-  brand                 String  // e.g. "Coca-Cola", "Omo", "Lay's" — free text, agents can log any brand they see
-  rank                  Int?    // 1 = top seller at this store
+  category              String
+  brand                 String
+  rank                  Int?
   estimatedMonthlyUnits Int?
   estimatedUnitPriceZar Float?
   notes                 String?
 
-  // Auto-matched (case-insensitive) against the Brand catalog at save time.
-  // Null when the typed brand isn't a partnered brand yet — still useful
-  // raw demand data, just not tied to a client account.
-  brandId String?
-  brandRef Brand? @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  brandId  String?
+  brandRef Brand?  @relation(fields: [brandId], references: [id], onDelete: SetNull)
 }
 
 // ──────────────────────────────────────────────
-// AUDIT LOG — immutable trail of who did what
+// AUDIT LOG
 // ──────────────────────────────────────────────
 
 model AuditLog {
-  id         String   @id @default(cuid())
+  id         String  @id @default(cuid())
   actorId    String?
-  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  actorEmail String?  // denormalised so log survives user deletion
+  actor      User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorEmail String?
   actorRole  String?
 
-  action     String   // e.g. "store.create", "assessment.review", "store.redact_pii"
-  entityType String   // "Store" | "Assessment" | "User"
+  action     String
+  entityType String
   entityId   String
 
-  // Optional before/after snapshot (JSON string) for key fields
   beforeJson String?
   afterJson  String?
-  metaJson   String?  // free-form extra context
+  metaJson   String?
 
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([entityType, entityId])
   @@index([actorId])
