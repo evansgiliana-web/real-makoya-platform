@@ -6,14 +6,13 @@ import { can } from "@/lib/rbac";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
+// CLIENT (FMCG) accounts are created through /api/organizations instead,
+// since every client login must belong to an Organization + Brand scope now.
 const userSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(8),
-  role: z.enum(["SUPER_ADMIN", "ADMIN", "FIELD_AGENT", "CLIENT"]),
-  companyName: z.string().optional(),
-  allBrandsAccess: z.boolean().default(true),
-  brandAccess: z.array(z.string()).default([]),
+  role: z.enum(["SUPER_ADMIN", "ADMIN", "FIELD_AGENT"]),
 });
 
 export async function GET() {
@@ -24,18 +23,9 @@ export async function GET() {
   }
 
   const users = await prisma.user.findMany({
+    where: { role: { in: ["SUPER_ADMIN", "ADMIN", "FIELD_AGENT"] } },
     orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      active: true,
-      companyName: true,
-      allBrandsAccess: true,
-      createdAt: true,
-      brandAccess: { select: { brandName: true } },
-    },
+    select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
   });
 
   return NextResponse.json(users);
@@ -48,17 +38,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Only a SUPER_ADMIN can create another SUPER_ADMIN or ADMIN account.
   const body = await req.json();
   const parsed = userSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  if (
-    ["SUPER_ADMIN", "ADMIN"].includes(parsed.data.role) &&
-    session.user.role !== "SUPER_ADMIN"
-  ) {
+  // Only a SUPER_ADMIN can create another SUPER_ADMIN or ADMIN account.
+  if (["SUPER_ADMIN", "ADMIN"].includes(parsed.data.role) && session.user.role !== "SUPER_ADMIN") {
     return NextResponse.json(
       { error: "Only a Super Admin can create Admin or Super Admin accounts." },
       { status: 403 }
@@ -78,13 +65,7 @@ export async function POST(req: NextRequest) {
       email: parsed.data.email.toLowerCase(),
       passwordHash,
       role: parsed.data.role,
-      companyName: parsed.data.companyName,
-      allBrandsAccess: parsed.data.role === "CLIENT" ? parsed.data.allBrandsAccess : true,
       invitedById: session.user.id,
-      brandAccess:
-        parsed.data.role === "CLIENT" && !parsed.data.allBrandsAccess
-          ? { create: parsed.data.brandAccess.map((brandName) => ({ brandName })) }
-          : undefined,
     },
     select: { id: true, name: true, email: true, role: true },
   });

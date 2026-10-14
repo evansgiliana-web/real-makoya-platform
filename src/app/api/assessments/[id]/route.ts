@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit";
 import { sendHighRiskAlert } from "@/lib/email";
+import { matchBrandIds } from "@/lib/brandMatch";
 import { z } from "zod";
 
 const productLineSchema = z.object({
@@ -166,12 +167,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Replace product lines if provided
   if (productLines) {
+    const brandIdByName = await matchBrandIds(productLines.map((p) => p.brand));
     await prisma.productLine.deleteMany({ where: { assessmentId: params.id } });
     await prisma.productLine.createMany({
       data: productLines.map((p) => ({
         assessmentId: params.id,
         category: p.category,
         brand: p.brand,
+        brandId: brandIdByName[p.brand.trim()] ?? null,
         rank: p.rank ?? null,
         estimatedMonthlyUnits: p.estimatedMonthlyUnits ?? null,
         estimatedUnitPriceZar: p.estimatedUnitPriceZar ?? null,

@@ -30,7 +30,7 @@ export default async function OverviewPage({
 }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
-  if (session.user.role === "CLIENT") redirect("/portal");
+  if (session.user.role === "CLIENT") redirect("/dashboard/reports");
 
   const period = searchParams.period || "ALL";
   const region = searchParams.region || "ALL";

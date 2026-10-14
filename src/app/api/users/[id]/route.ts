@@ -19,7 +19,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const body = await req.json();
-  const allowed = ["active", "role", "allBrandsAccess", "companyName"];
+  const allowed = ["active", "role"];
   const data: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) data[key] = body[key];
 
