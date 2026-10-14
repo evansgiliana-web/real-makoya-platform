@@ -3,51 +3,19 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import PrintButton from "@/components/PrintButton";
-import BrandSwitcher from "@/components/BrandSwitcher";
+import { resolveBrandScope } from "@/lib/org-access";
 
-export default async function ReportsPage({
-  searchParams,
-}: {
-  searchParams: { brand?: string };
-}) {
+export default async function ReportsPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
   const isClient = session.user.role === "CLIENT";
-  let brandIdFilter: string[] | null = null;
-  let orgBrands: { id: string; name: string }[] = [];
-  let orgName = "";
-
-  if (isClient) {
-    const membership = await prisma.orgMembership.findFirst({
-      where: { userId: session.user.id },
-      include: { organization: { include: { brands: true } } },
-    });
-
-    if (!membership) {
-      return (
-        <div className="card p-6">
-          <p className="text-sm text-gray-500">
-            Your account isn't linked to an organization yet. Contact Real Makoya Agency for help.
-          </p>
-        </div>
-      );
-    }
-
-    orgBrands = membership.organization.brands;
-    orgName = membership.organization.name;
-
-    // The brands this person can see at all
-    const accessibleBrandIds = membership.allBrandsAccess
-      ? orgBrands.map((b) => b.id)
-      : membership.brandIds;
-
-    // A specific brand picked from the switcher narrows further, but can
-    // never escape what this membership is actually scoped to.
-    const requested = searchParams.brand;
-    brandIdFilter =
-      requested && accessibleBrandIds.includes(requested) ? [requested] : accessibleBrandIds;
-  }
+  const scope = await resolveBrandScope({
+    userId: session.user.id,
+    role: session.user.role,
+  });
+  // null = unrestricted; [] = no brands; string[] = scoped
+  const brandFilter: string[] | null = isClient ? scope.brandNames : null;
 
   // Client reports only include REVIEWED assessments (QA gate).
   // Agency staff still see a pending-review notice below.
@@ -68,7 +36,7 @@ export default async function ReportsPage({
           municipalRegistrationStatus: true,
         },
       },
-      productLines: brandIdFilter ? { where: { brandId: { in: brandIdFilter } } } : true,
+      productLines: brandFilter ? { where: { brand: { in: brandFilter } } } : true,
     },
     orderBy: { visitDate: "desc" },
   });
@@ -78,7 +46,7 @@ export default async function ReportsPage({
     : await prisma.assessment.count({ where: { status: "SUBMITTED" } });
 
   // If brand-scoped, drop assessments that have zero matching product lines
-  const scoped = brandIdFilter ? assessments.filter((a) => a.productLines.length > 0) : assessments;
+  const scoped = brandFilter ? assessments.filter((a) => a.productLines.length > 0) : assessments;
 
   // For client metrics, only REVIEWED counts; for staff we show all but surface pending.
   const reportScoped = isClient
@@ -138,21 +106,18 @@ export default async function ReportsPage({
     )}
 
     <div>
-      <div className="flex items-start justify-between mb-6 no-print flex-wrap gap-3">
+      <div className="flex items-start justify-between mb-6 no-print">
         <div>
           <h1 className="text-2xl font-bold text-brand-900">Market Intelligence Report</h1>
           <p className="text-sm text-gray-500">
             {isClient
-              ? orgBrands.length > 1
-                ? "Switch between a single brand and your organization's combined view below."
-                : `${orgName} — full brand access`
+              ? brandFilter
+                ? `Scoped to: ${brandFilter.join(", ")}`
+                : "Full market access"
               : "Preview of the report shared with FMCG clients"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {isClient && orgBrands.length > 1 && <BrandSwitcher brands={orgBrands} orgName={orgName} />}
-          <PrintButton />
-        </div>
+        <PrintButton />
       </div>
 
       <div className="card p-8 space-y-8">

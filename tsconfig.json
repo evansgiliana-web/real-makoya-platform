@@ -14,12 +14,8 @@
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }],
-    "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] },
-    "ignoreDeprecations": "6.0"
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-   
-  "exclude": ["node_modules", ".next", "prisma/seed.ts"]
-
+  "exclude": ["node_modules"]
 }

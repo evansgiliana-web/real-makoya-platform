@@ -1,212 +1,105 @@
-/**
- * Real Makoya — database seed
- *
- * Matches schema: Organization, Brand, OrgMembership, OrgRole, Role
- *
- * Run locally (or against prod DB once):
- *   npx prisma generate
- *   npx prisma db push
- *   npm run db:seed
- *
- * Do NOT run this during the Vercel build.
- */
-import { PrismaClient, Role, OrgRole } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-
-declare const process: {
-  env: Record<string, string | undefined>;
-  exit: (code?: number) => void;
-};
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("[seed] Starting…");
-
-  const adminEmail = (process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.co.za")
-    .toLowerCase()
-    .trim();
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "ChangeMe123!";
+  // ── Super Admin (from .env, so you control the real login credentials) ──
+  const adminEmail = (process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.co.za").toLowerCase().trim();
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
   const adminName = process.env.SEED_ADMIN_NAME || "Real Makoya Super Admin";
 
-  // ── Super Admin ────────────────────────────────────────────────────
-  let superAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
-  if (!superAdmin) {
-    superAdmin = await prisma.user.create({
+  // Never fall back to a well-known default password — that would put a
+  // guessable Super Admin login into whichever database this runs against.
+  if (!adminPassword || adminPassword.length < 10) {
+    throw new Error(
+      "Set SEED_ADMIN_PASSWORD (at least 10 characters) in your .env before running the seed."
+    );
+  }
+
+  // Demo logins (known passwords) are opt-in, so they can't end up in a real
+  // database by accident. Add SEED_DEMO_DATA=true to .env for a local sandbox.
+  const seedDemo = process.env.SEED_DEMO_DATA === "true";
+
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  const superAdmin =
+    existingAdmin ||
+    (await prisma.user.create({
       data: {
         name: adminName,
         email: adminEmail,
         passwordHash: await bcrypt.hash(adminPassword, 12),
-        role: Role.SUPER_ADMIN,
-        active: true,
+        role: "SUPER_ADMIN",
       },
-    });
-    console.log("[seed] Created super admin:", adminEmail);
-  } else {
-    console.log("[seed] Super admin OK:", adminEmail);
+    }));
+
+  if (!seedDemo) {
+    console.log("Super Admin ready:", adminEmail);
+    console.log("Demo data skipped (set SEED_DEMO_DATA=true in .env to include it).");
+    return;
   }
 
-  // ── Field Agent ────────────────────────────────────────────────────
-  let agent = await prisma.user.findUnique({
-    where: { email: "agent@realmakoya.co.za" },
-  });
-  if (!agent) {
-    agent = await prisma.user.create({
+  // ── A sample Field Agent, so you can log in and try the capture flow ──
+  const agent =
+    (await prisma.user.findUnique({ where: { email: "agent@realmakoya.co.za" } })) ||
+    (await prisma.user.create({
       data: {
         name: "Thabo Mokoena",
         email: "agent@realmakoya.co.za",
         passwordHash: await bcrypt.hash("AgentDemo123!", 12),
-        role: Role.FIELD_AGENT,
-        active: true,
+        role: "FIELD_AGENT",
         invitedById: superAdmin.id,
       },
-    });
-    console.log("[seed] Created field agent");
-  } else {
-    console.log("[seed] Field agent OK");
-  }
+    }));
 
-  // ── Organization + brands ──────────────────────────────────────────
+  // ── A demo FMCG Organization with two brands and one Owner login ──
   let org = await prisma.organization.findFirst({
-    where: { name: "Tiger Brands (Demo)" },
+    where: { name: "Demo FMCG Co." },
     include: { brands: true },
   });
-
   if (!org) {
     org = await prisma.organization.create({
       data: {
-        name: "Tiger Brands (Demo)",
+        name: "Demo FMCG Co.",
         brands: {
           create: [
             { name: "Omo", category: "Laundry" },
             { name: "Sunlight", category: "Household Cleaning" },
-            { name: "Koo", category: "Food" },
-            { name: "Albany", category: "Bakery" },
           ],
         },
       },
       include: { brands: true },
     });
-    console.log("[seed] Created organization: Tiger Brands (Demo)");
-  } else {
-    for (const [name, category] of [
-      ["Omo", "Laundry"],
-      ["Sunlight", "Household Cleaning"],
-      ["Koo", "Food"],
-      ["Albany", "Bakery"],
-    ] as const) {
-      const exists = await prisma.brand.findFirst({
-        where: { organizationId: org.id, name },
-      });
-      if (!exists) {
-        await prisma.brand.create({
-          data: { organizationId: org.id, name, category },
-        });
-      }
-    }
-    org = await prisma.organization.findUniqueOrThrow({
-      where: { id: org.id },
-      include: { brands: true },
-    });
-    console.log("[seed] Organization exists:", org.name);
   }
 
-  const clientHash = await bcrypt.hash("ClientDemo123!", 12);
-  const omoId = org.brands.find((b) => b.name === "Omo")?.id;
-  const sunlightId = org.brands.find((b) => b.name === "Sunlight")?.id;
-  const analystBrandIds = [omoId, sunlightId].filter(Boolean) as string[];
-
-  async function ensureClient(email: string, name: string) {
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (!existing) {
-      const created = await prisma.user.create({
-        data: {
-          name,
-          email,
-          passwordHash: clientHash,
-          role: Role.CLIENT,
-          active: true,
-          invitedById: superAdmin!.id,
+  const existingOwner = await prisma.user.findUnique({
+    where: { email: "client@tigerbrands-demo.co.za" },
+  });
+  if (!existingOwner) {
+    await prisma.orgMembership.create({
+      data: {
+        organizationId: org.id,
+        orgRole: "OWNER",
+        allBrandsAccess: true,
+        user: {
+          create: {
+            name: "Demo FMCG Contact",
+            email: "client@tigerbrands-demo.co.za",
+            passwordHash: await bcrypt.hash("ClientDemo123!", 12),
+            role: "CLIENT",
+            invitedById: superAdmin.id,
+          },
         },
-      });
-      console.log("[seed] Created CLIENT:", email);
-      return created;
-    }
-    const updated = await prisma.user.update({
-      where: { id: existing.id },
-      data: {
-        passwordHash: clientHash,
-        role: Role.CLIENT,
-        active: true,
-      },
-    });
-    console.log("[seed] Reset CLIENT password:", email);
-    return updated;
-  }
-
-  const owner = await ensureClient("admin@tigerbrands-demo.co.za", "Tiger Org Admin");
-  const member = await ensureClient(
-    "client@tigerbrands-demo.co.za",
-    "Demo Brand Analyst"
-  );
-
-  // ── OWNER membership (all brands) ──────────────────────────────────
-  const ownerMem = await prisma.orgMembership.findFirst({
-    where: { userId: owner.id, organizationId: org.id },
-  });
-  if (!ownerMem) {
-    await prisma.orgMembership.create({
-      data: {
-        userId: owner.id,
-        organizationId: org.id,
-        orgRole: OrgRole.OWNER,
-        allBrandsAccess: true,
-        brandIds: [],
-      },
-    });
-    console.log("[seed] Linked OWNER membership");
-  } else {
-    await prisma.orgMembership.update({
-      where: { id: ownerMem.id },
-      data: {
-        orgRole: OrgRole.OWNER,
-        allBrandsAccess: true,
       },
     });
   }
 
-  // ── MEMBER membership (Omo + Sunlight only) ────────────────────────
-  const memberMem = await prisma.orgMembership.findFirst({
-    where: { userId: member.id, organizationId: org.id },
-  });
-  if (!memberMem) {
-    await prisma.orgMembership.create({
-      data: {
-        userId: member.id,
-        organizationId: org.id,
-        orgRole: OrgRole.MEMBER,
-        allBrandsAccess: false,
-        brandIds: analystBrandIds,
-      },
-    });
-    console.log("[seed] Linked MEMBER membership (Omo, Sunlight)");
-  } else {
-    await prisma.orgMembership.update({
-      where: { id: memberMem.id },
-      data: {
-        orgRole: OrgRole.MEMBER,
-        allBrandsAccess: false,
-        brandIds: analystBrandIds,
-      },
-    });
-  }
+  // ── A sample store with a full assessment, so reports have something to show ──
+  const existingStore = await prisma.store.findFirst({ where: { name: "Thabo's Spaza Shop" } });
 
-  // ── Sample store ───────────────────────────────────────────────────
-  let store = await prisma.store.findFirst({
-    where: { name: "Thabo's Spaza Shop" },
-  });
-  if (!store) {
-    store = await prisma.store.create({
+  const store =
+    existingStore ||
+    (await prisma.store.create({
       data: {
         name: "Thabo's Spaza Shop",
         tradingAs: "Thabo Tuckshop",
@@ -220,6 +113,7 @@ async function main() {
         ownerIdOrCompanyRegNumber: "8001015009087",
         municipalRegistrationStatus: "REGISTERED",
         municipalRegistrationNumber: "JHB-SPZ-004521",
+        registrationNotes: "Registered with City of Johannesburg informal trading unit.",
         storeTelephoneNumber: "011 987 6543",
         ownerConsentGiven: true,
         ownerConsentAt: new Date(),
@@ -228,43 +122,29 @@ async function main() {
         nextVisitDue: new Date(Date.now() + 90 * 86400000),
         createdById: superAdmin.id,
       },
-    });
-    console.log("[seed] Created sample store");
-  }
+    }));
 
-  // ── Sample REVIEWED assessment ─────────────────────────────────────
-  const existingAssessment = await prisma.assessment.findFirst({
-    where: { storeId: store.id },
-  });
+  const existingAssessment = await prisma.assessment.findFirst({ where: { storeId: store.id } });
+
   if (!existingAssessment) {
+    const brands = org.brands;
+    const omoId = brands.find((b: { id: string; name: string }) => b.name === "Omo")?.id ?? null;
+    const sunlightId = brands.find((b: { id: string; name: string }) => b.name === "Sunlight")?.id ?? null;
+
     await prisma.assessment.create({
       data: {
         storeId: store.id,
         agentId: agent.id,
         status: "REVIEWED",
-        reviewedAt: new Date(),
         reviewedById: superAdmin.id,
-        sourceType: "FORMAL_WHOLESALER",
-        supplierName: "Jumbo Cash & Carry",
-        supplierLocation: "Booysens, Johannesburg",
-        hasValidCoA: true,
-        hasHealthPermit: true,
-        healthPermitNumber: "HP-2026-00812",
-        brandAuthenticityVerified: true,
-        counterfeitRisk: "LOW",
-        totalSkuCount: 180,
-        estimatedMonthlyTurnoverZar: 45000,
-        packingShelvesCount: 6,
-        posInstalled: true,
-        posBrand: "Yoco",
-        posModel: "Yoco Go",
-        internetConnectivity: "MOBILE_DATA",
+        reviewedAt: new Date(),
+
         productLines: {
           create: [
             {
               category: "Laundry",
               brand: "Omo",
-              brandId: omoId ?? null,
+              brandId: omoId,
               rank: 1,
               estimatedMonthlyUnits: 1000,
               estimatedUnitPriceZar: 25.5,
@@ -273,30 +153,57 @@ async function main() {
             {
               category: "Household Cleaning",
               brand: "Sunlight",
-              brandId: sunlightId ?? null,
+              brandId: sunlightId,
               rank: 2,
               estimatedMonthlyUnits: 66,
               estimatedUnitPriceZar: 18.0,
             },
           ],
         },
+
+        sourceType: "FORMAL_WHOLESALER",
+        supplierName: "Jumbo Cash & Carry",
+        supplierLocation: "Booysens, Johannesburg",
+        distributionNotes: "Owner collects stock weekly by bakkie.",
+
+        hasValidCoA: true,
+        hasHealthPermit: true,
+        healthPermitNumber: "HP-2026-00812",
+        brandAuthenticityVerified: true,
+
+        counterfeitRisk: "LOW",
+        packagingIssueFlag: false,
+        batchCodeIssueFlag: false,
+        pricingAnomalyFlag: false,
+        counterfeitNotes: "Minor packaging wear on one Omo unit, likely just shelf handling.",
+
+        totalSkuCount: 180,
+        estimatedMonthlyTurnoverZar: 45000,
+
+        packingShelvesCount: 6,
+        posInstalled: true,
+        posBrand: "Yoco",
+        posModel: "Yoco Go",
+        internetConnectivity: "MOBILE_DATA",
+        scannerInstalled: false,
+
+        internalNotes: "Friendly owner, open to a follow-up visit next quarter.",
       },
     });
-    console.log("[seed] Created REVIEWED assessment");
   }
 
   console.log("──────────────────────────────────────────");
   console.log("Seed complete. Demo logins:");
-  console.log(`  Super Admin  → ${adminEmail} / ${adminPassword}`);
-  console.log("  Field Agent  → agent@realmakoya.co.za / AgentDemo123!");
-  console.log("  Org OWNER    → admin@tigerbrands-demo.co.za / ClientDemo123!");
-  console.log("  Brand MEMBER → client@tigerbrands-demo.co.za / ClientDemo123!");
+  console.log(`  Super Admin → ${adminEmail} (password from SEED_ADMIN_PASSWORD)`);
+  console.log("  Field Agent → agent@realmakoya.co.za / AgentDemo123!");
+  console.log("  FMCG Client → client@tigerbrands-demo.co.za / ClientDemo123!");
+  console.log("Change these passwords after your first login.");
   console.log("──────────────────────────────────────────");
 }
 
 main()
   .catch((e) => {
-    console.error("[seed] FAILED:", e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {
