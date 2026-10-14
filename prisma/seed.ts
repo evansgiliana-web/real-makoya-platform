@@ -1,5 +1,11 @@
-import { PrismaClient } from "@prisma/client";
+
 import bcrypt from "bcryptjs";
+import { PrismaClient, Role, OrgRole } from "@prisma/client";
+
+declare const process: {
+  env: Record<string, string | undefined>;
+  exit(code?: number): never;
+};
 
 const prisma = new PrismaClient();
 
@@ -76,20 +82,22 @@ async function main() {
     where: { email: "client@tigerbrands-demo.co.za" },
   });
   if (!existingOwner) {
+    const owner = await prisma.user.create({
+      data: {
+        name: "Demo FMCG Contact",
+        email: "client@tigerbrands-demo.co.za",
+        passwordHash: await bcrypt.hash("ClientDemo123!", 12),
+        role: Role.CLIENT,
+        invitedById: superAdmin.id,
+      },
+    });
+
     await prisma.orgMembership.create({
       data: {
         organizationId: org.id,
+        userId: owner.id,
         orgRole: "OWNER",
         allBrandsAccess: true,
-        user: {
-          create: {
-            name: "Demo FMCG Contact",
-            email: "client@tigerbrands-demo.co.za",
-            passwordHash: await bcrypt.hash("ClientDemo123!", 12),
-            role: "CLIENT",
-            invitedById: superAdmin.id,
-          },
-        },
       },
     });
   }
