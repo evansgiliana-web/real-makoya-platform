@@ -24,6 +24,9 @@ const storeUpdateSchema = z.object({
   registrationNotes: z.string().optional().nullable(),
   storeTelephoneNumber: z.string().optional().nullable(),
   storePhotoUrls: z.array(z.string()).optional(),
+  structuredImages: z
+    .array(z.object({ category: z.string().min(1), url: z.string().url() }))
+    .optional(),
   ownerConsentGiven: z.boolean().optional(),
   visitCadenceDays: z.number().int().min(7).max(365).optional(),
   nextVisitDue: z.string().optional().nullable(),
@@ -41,6 +44,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     where: { id: params.id },
     include: {
       createdBy: { select: { name: true, email: true } },
+      images: true,
       assessments: {
         orderBy: { visitDate: "desc" },
         include: {
@@ -132,10 +136,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data.nextVisitDue = parsed.data.nextVisitDue ? new Date(parsed.data.nextVisitDue) : null;
   }
 
+  // structuredImages is not a Prisma Store scalar — handle separately
+  const structuredImages = parsed.data.structuredImages;
+  delete data.structuredImages;
+
   const store = await prisma.store.update({
     where: { id: params.id },
     data,
   });
+
+  if (structuredImages) {
+    // Replace labelled slot images for this store (idempotent resync)
+    await prisma.image.deleteMany({ where: { storeId: params.id } });
+    if (structuredImages.length > 0) {
+      await prisma.image.createMany({
+        data: structuredImages.map((img) => ({
+          storeId: params.id,
+          category: img.category,
+          url: img.url,
+          capturedBy: session.user.id,
+        })),
+      });
+    }
+  }
 
   await writeAuditLog({
     actorId: session.user.id,

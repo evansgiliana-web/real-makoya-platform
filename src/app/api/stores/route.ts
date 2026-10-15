@@ -22,6 +22,10 @@ const storeSchema = z.object({
   registrationNotes: z.string().optional(),
   storeTelephoneNumber: z.string().optional(),
   storePhotoUrls: z.array(z.string()).default([]),
+  structuredImages: z
+    .array(z.object({ category: z.string().min(1), url: z.string().url() }))
+    .optional()
+    .default([]),
   // POPIA
   ownerConsentGiven: z.boolean(),
   // Visit cadence
@@ -105,7 +109,18 @@ export async function POST(req: NextRequest) {
       visitCadenceDays: cadence,
       nextVisitDue: nextDue,
       createdById: session.user.id,
+      images:
+        parsed.data.structuredImages.length > 0
+          ? {
+              create: parsed.data.structuredImages.map((img) => ({
+                category: img.category,
+                url: img.url,
+                capturedBy: session.user.id,
+              })),
+            }
+          : undefined,
     },
+    include: { images: true },
   });
 
   await writeAuditLog({

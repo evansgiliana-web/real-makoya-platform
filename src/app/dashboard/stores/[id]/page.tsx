@@ -7,6 +7,8 @@ import RedactPiiButton from "@/components/RedactPiiButton";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/rbac";
+import PhotoGallery from "@/components/PhotoGallery";
+import { sortImagesBySlot, slotLabel } from "@/lib/photoSlots";
 
 const regStyles: Record<string, string> = {
   REGISTERED: "bg-green-100 text-green-700",
@@ -36,6 +38,7 @@ export default async function StoreDetailPage({ params }: { params: { id: string
     where: { id: params.id },
     include: {
       createdBy: { select: { name: true } },
+      images: true,
       assessments: {
         orderBy: { visitDate: "desc" },
         include: { productLines: true, agent: { select: { name: true } } },
@@ -109,6 +112,26 @@ export default async function StoreDetailPage({ params }: { params: { id: string
           (cadence: every {store.visitCadenceDays || 90} days)
         </span>
       </div>
+
+      {/* Labelled store photos */}
+      <PhotoGallery
+        title="Store photo checklist"
+        items={sortImagesBySlot(store.images).map((img) => ({
+          url: img.url,
+          label: slotLabel(img.category),
+          category: img.category,
+        })).concat(
+          // Legacy flat URLs not yet migrated into Image rows
+          store.storePhotoUrls
+            .filter((url) => !store.images.some((img) => img.url === url))
+            .map((url, i) => ({
+              url,
+              label: `Other photo ${i + 1}`,
+              category: "OTHER",
+            }))
+        )}
+        emptyMessage="No store photos yet. Edit the store to capture the required photo checklist."
+      />
 
       <div className="card p-6 mb-6">
         <div className="flex items-center justify-between mb-3">

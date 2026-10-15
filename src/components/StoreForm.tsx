@@ -2,7 +2,12 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import ImageUploader from "./ImageUploader";
+import StorePhotoSlots from "./StorePhotoSlots";
+import {
+  STORE_PHOTO_SLOTS,
+  type SlotPhotoMap,
+  type StorePhotoSlotKey,
+} from "@/lib/photoSlots";
 
 type StoreInitial = {
   id: string;
@@ -21,6 +26,8 @@ type StoreInitial = {
   registrationNotes?: string | null;
   storeTelephoneNumber?: string | null;
   storePhotoUrls?: string[];
+  /** Labelled images from Image model */
+  images?: { category: string; url: string }[];
   ownerConsentGiven?: boolean;
   visitCadenceDays?: number;
   nextVisitDue?: string | null;
@@ -30,6 +37,19 @@ type StoreInitial = {
 type Props = {
   initial?: StoreInitial;
 };
+
+function imagesToSlotMap(
+  images?: { category: string; url: string }[]
+): SlotPhotoMap {
+  const map: SlotPhotoMap = {};
+  if (!images) return map;
+  for (const img of images) {
+    if (STORE_PHOTO_SLOTS.some((s) => s.key === img.category)) {
+      map[img.category as StorePhotoSlotKey] = img.url;
+    }
+  }
+  return map;
+}
 
 export default function StoreForm({ initial }: Props) {
   const router = useRouter();
@@ -46,7 +66,9 @@ export default function StoreForm({ initial }: Props) {
       ? `Saved: ${initial.latitude.toFixed(5)}, ${initial.longitude?.toFixed(5)}`
       : ""
   );
-  const [storePhotos, setStorePhotos] = useState<string[]>(initial?.storePhotoUrls || []);
+  const [slotPhotos, setSlotPhotos] = useState<SlotPhotoMap>(() =>
+    imagesToSlotMap(initial?.images)
+  );
   const [consent, setConsent] = useState(Boolean(initial?.ownerConsentGiven));
 
   function captureLocation() {
@@ -70,9 +92,26 @@ export default function StoreForm({ initial }: Props) {
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+
+    const missing = STORE_PHOTO_SLOTS.filter((s) => s.required && !slotPhotos[s.key]);
+    if (missing.length > 0) {
+      setError(
+        `Please capture required photos: ${missing.map((m) => m.label).join(", ")}`
+      );
+      return;
+    }
+
     setLoading(true);
 
     const form = new FormData(e.currentTarget);
+    const structuredImages = STORE_PHOTO_SLOTS.filter((s) => slotPhotos[s.key]).map((s) => ({
+      category: s.key,
+      url: slotPhotos[s.key]!,
+    }));
+
+    // Flat list kept for backward compatibility with storePhotoUrls
+    const storePhotoUrls = structuredImages.map((i) => i.url);
+
     const payload = {
       name: form.get("name"),
       tradingAs: form.get("tradingAs") || undefined,
@@ -88,7 +127,8 @@ export default function StoreForm({ initial }: Props) {
       storeTelephoneNumber: form.get("storeTelephoneNumber") || undefined,
       latitude: coords?.lat ?? undefined,
       longitude: coords?.lng ?? undefined,
-      storePhotoUrls: storePhotos,
+      storePhotoUrls,
+      structuredImages,
       ownerConsentGiven: consent,
       visitCadenceDays: Number(form.get("visitCadenceDays") || 90),
       nextVisitDue: (form.get("nextVisitDue") as string) || undefined,
@@ -125,7 +165,7 @@ export default function StoreForm({ initial }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card p-6 space-y-6 max-w-2xl">
+    <form onSubmit={handleSubmit} className="card p-6 space-y-6 max-w-3xl">
       <section>
         <h2 className="font-semibold text-brand-900 mb-3">Store Details</h2>
         <div className="grid grid-cols-2 gap-4">
@@ -171,14 +211,11 @@ export default function StoreForm({ initial }: Props) {
             </button>
             {geoStatus && <p className="text-xs text-gray-500 mt-1">{geoStatus}</p>}
           </div>
-          <div className="col-span-2">
-            <ImageUploader
-              label="Store Photos (storefront, signage, interior)"
-              urls={storePhotos}
-              onChange={setStorePhotos}
-            />
-          </div>
         </div>
+      </section>
+
+      <section className="border-t border-gray-100 pt-5">
+        <StorePhotoSlots value={slotPhotos} onChange={setSlotPhotos} />
       </section>
 
       <section className="border-t border-gray-100 pt-5">

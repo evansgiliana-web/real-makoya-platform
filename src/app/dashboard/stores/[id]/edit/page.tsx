@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import StoreForm from "@/components/StoreForm";
 
 export default async function EditStorePage({ params }: { params: { id: string } }) {
-  const store = await prisma.store.findUnique({ where: { id: params.id } });
+  const store = await prisma.store.findUnique({
+    where: { id: params.id },
+    include: { images: true },
+  });
   if (!store) notFound();
 
   return (
@@ -30,6 +33,10 @@ export default async function EditStorePage({ params }: { params: { id: string }
           registrationNotes: store.registrationNotes,
           storeTelephoneNumber: store.storeTelephoneNumber,
           storePhotoUrls: store.storePhotoUrls,
+          images: store.images.map((img) => ({
+            category: img.category,
+            url: img.url,
+          })),
           ownerConsentGiven: store.ownerConsentGiven,
           visitCadenceDays: store.visitCadenceDays,
           nextVisitDue: store.nextVisitDue?.toISOString() ?? null,
