@@ -78,7 +78,7 @@ model Brand {
 }
 
 enum OrgRole {
-  OWNER  // can invite/remove teammates and manage brand access for the organization
+  OWNER  // can invite/remove teammates and manage brand access for the org
   MEMBER // read-only, scoped to the brands granted below
 }
 

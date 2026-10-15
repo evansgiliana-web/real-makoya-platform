@@ -1,31 +1,13 @@
-
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { PrismaClient, Role, OrgRole } from "@prisma/client";
-
-declare const process: {
-  env: Record<string, string | undefined>;
-  exit(code?: number): never;
-};
 
 const prisma = new PrismaClient();
 
 async function main() {
   // ── Super Admin (from .env, so you control the real login credentials) ──
-  const adminEmail = (process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.co.za").toLowerCase().trim();
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.co.za";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "ChangeMe123!";
   const adminName = process.env.SEED_ADMIN_NAME || "Real Makoya Super Admin";
-
-  // Never fall back to a well-known default password — that would put a
-  // guessable Super Admin login into whichever database this runs against.
-  if (!adminPassword || adminPassword.length < 10) {
-    throw new Error(
-      "Set SEED_ADMIN_PASSWORD (at least 10 characters) in your .env before running the seed."
-    );
-  }
-
-  // Demo logins (known passwords) are opt-in, so they can't end up in a real
-  // database by accident. Add SEED_DEMO_DATA=true to .env for a local sandbox.
-  const seedDemo = process.env.SEED_DEMO_DATA === "true";
 
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
   const superAdmin =
@@ -38,12 +20,6 @@ async function main() {
         role: "SUPER_ADMIN",
       },
     }));
-
-  if (!seedDemo) {
-    console.log("Super Admin ready:", adminEmail);
-    console.log("Demo data skipped (set SEED_DEMO_DATA=true in .env to include it).");
-    return;
-  }
 
   // ── A sample Field Agent, so you can log in and try the capture flow ──
   const agent =
@@ -59,10 +35,7 @@ async function main() {
     }));
 
   // ── A demo FMCG Organization with two brands and one Owner login ──
-  let org = await prisma.organization.findFirst({
-    where: { name: "Demo FMCG Co." },
-    include: { brands: true },
-  });
+  let org = await prisma.organization.findFirst({ where: { name: "Demo FMCG Co." } });
   if (!org) {
     org = await prisma.organization.create({
       data: {
@@ -74,7 +47,6 @@ async function main() {
           ],
         },
       },
-      include: { brands: true },
     });
   }
 
@@ -82,22 +54,20 @@ async function main() {
     where: { email: "client@tigerbrands-demo.co.za" },
   });
   if (!existingOwner) {
-    const owner = await prisma.user.create({
-      data: {
-        name: "Demo FMCG Contact",
-        email: "client@tigerbrands-demo.co.za",
-        passwordHash: await bcrypt.hash("ClientDemo123!", 12),
-        role: Role.CLIENT,
-        invitedById: superAdmin.id,
-      },
-    });
-
     await prisma.orgMembership.create({
       data: {
         organizationId: org.id,
-        userId: owner.id,
         orgRole: "OWNER",
         allBrandsAccess: true,
+        user: {
+          create: {
+            name: "Demo FMCG Contact",
+            email: "client@tigerbrands-demo.co.za",
+            passwordHash: await bcrypt.hash("ClientDemo123!", 12),
+            role: "CLIENT",
+            invitedById: superAdmin.id,
+          },
+        },
       },
     });
   }
@@ -135,9 +105,9 @@ async function main() {
   const existingAssessment = await prisma.assessment.findFirst({ where: { storeId: store.id } });
 
   if (!existingAssessment) {
-    const brands = org.brands;
-    const omoId = brands.find((b: { id: string; name: string }) => b.name === "Omo")?.id ?? null;
-    const sunlightId = brands.find((b: { id: string; name: string }) => b.name === "Sunlight")?.id ?? null;
+    const brands = await prisma.brand.findMany({ where: { organizationId: org.id } });
+    const omoId = brands.find((b) => b.name === "Omo")?.id ?? null;
+    const sunlightId = brands.find((b) => b.name === "Sunlight")?.id ?? null;
 
     await prisma.assessment.create({
       data: {
@@ -202,7 +172,7 @@ async function main() {
 
   console.log("──────────────────────────────────────────");
   console.log("Seed complete. Demo logins:");
-  console.log(`  Super Admin → ${adminEmail} (password from SEED_ADMIN_PASSWORD)`);
+  console.log(`  Super Admin → ${adminEmail} / ${adminPassword}`);
   console.log("  Field Agent → agent@realmakoya.co.za / AgentDemo123!");
   console.log("  FMCG Client → client@tigerbrands-demo.co.za / ClientDemo123!");
   console.log("Change these passwords after your first login.");
