@@ -1,12 +1,13 @@
-import { PrismaClient } from "@prisma/client";
+
 import bcrypt from "bcryptjs";
+import { PrismaClient, Role } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
   // ── Super Admin (from .env, so you control the real login credentials) ──
-  const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.co.za";
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "ChangeMe123!";
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.com";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "Outlook@001";
   const adminName = process.env.SEED_ADMIN_NAME || "Real Makoya Super Admin";
 
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
@@ -56,7 +57,7 @@ async function main() {
   if (!existingOwner) {
     await prisma.orgMembership.create({
       data: {
-        organizationId: org.id,
+        organization: { connect: { id: org.id } },
         orgRole: "OWNER",
         allBrandsAccess: true,
         user: {
@@ -64,7 +65,7 @@ async function main() {
             name: "Demo FMCG Contact",
             email: "client@tigerbrands-demo.co.za",
             passwordHash: await bcrypt.hash("ClientDemo123!", 12),
-            role: "CLIENT",
+            role: Role.CLIENT,
             invitedById: superAdmin.id,
           },
         },
