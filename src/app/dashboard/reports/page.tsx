@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import PrintButton from "@/components/PrintButton";
+import ExportProductsCsvButton from "@/components/ExportProductsCsvButton";
+import StoreMapClient from "@/components/StoreMapClient";
 import ReportFilters from "@/components/ReportFilters";
 import VisitDocumentsList, { complianceDocsFromAssessment } from "@/components/VisitDocumentsList";
 import PhotoGallery from "@/components/PhotoGallery";
@@ -91,6 +93,8 @@ export default async function ReportsPage({
           ownerContactNumber: true,
           storeTelephoneNumber: true,
           municipalRegistrationStatus: true,
+          latitude: true,
+          longitude: true,
           images: true,
         },
       },
@@ -132,14 +136,10 @@ export default async function ReportsPage({
       : scoped;
 
   const totalStores = new Set(metricsSource.map((a) => a.storeId)).size;
-  const coaValidPct = pct(
-    metricsSource.filter((a) => a.hasValidCoA).length,
-    metricsSource.length
-  );
-  const healthPermitPct = pct(
-    metricsSource.filter((a) => a.hasHealthPermit).length,
-    metricsSource.length
-  );
+  const coaCount = metricsSource.filter((a) => a.hasValidCoA).length;
+  const healthPermitCount = metricsSource.filter((a) => a.hasHealthPermit).length;
+  const coaValidPct = pct(coaCount, metricsSource.length);
+  const healthPermitPct = pct(healthPermitCount, metricsSource.length);
   const authenticPct = pct(
     metricsSource.filter((a) => a.brandAuthenticityVerified).length,
     metricsSource.length
@@ -292,7 +292,10 @@ export default async function ReportsPage({
               : "Preview of the report shared with FMCG clients"}
           </p>
         </div>
-        <PrintButton />
+        <div className="flex items-center gap-2 no-print">
+          <ExportProductsCsvButton />
+          <PrintButton />
+        </div>
       </div>
 
       <ReportFilters
@@ -536,8 +539,14 @@ export default async function ReportsPage({
             <h3 className="font-semibold text-brand-900 mb-4">Executive Summary</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <Stat label="Stores Assessed" value={totalStores} />
-              <Stat label="Valid CoA on File" value={`${coaValidPct}%`} />
-              <Stat label="Health Permit Present" value={`${healthPermitPct}%`} />
+              <Stat
+                label="Valid CoA on File"
+                value={`${coaCount} (${coaValidPct}%)`}
+              />
+              <Stat
+                label="Health Permit Present"
+                value={`${healthPermitCount} (${healthPermitPct}%)`}
+              />
               <Stat label="Brand Authenticity Verified" value={`${authenticPct}%`} />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -547,6 +556,30 @@ export default async function ReportsPage({
               />
               <Stat label="Total SKUs Across Stores" value={totalSkus.toLocaleString()} />
             </div>
+          </section>
+
+          <section>
+            <h3 className="font-semibold text-brand-900 mb-3">
+              Map of stores in this filter
+            </h3>
+            <StoreMapClient
+              stores={directoryRows
+                .filter((a) => a.store.latitude != null && a.store.longitude != null)
+                .map((a) => ({
+                  id: a.store.id,
+                  name: a.store.name,
+                  town: a.store.town,
+                  province: a.store.province,
+                  latitude: a.store.latitude,
+                  longitude: a.store.longitude,
+                }))}
+              zoom={directoryRows.length === 1 ? 14 : 6}
+            />
+            {directoryRows.filter((a) => a.store.latitude == null).length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                Some stores have no GPS coordinates and are omitted from the map.
+              </p>
+            )}
           </section>
 
           <section>
@@ -665,7 +698,7 @@ export default async function ReportsPage({
                       <th className="py-2 pr-3">Units/mo</th>
                       <th className="py-2 pr-3">Unit price</th>
                       <th className="py-2 pr-3">Line value</th>
-                      <th className="py-2">Notes</th>
+                      {!isClient && <th className="py-2">Notes</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -689,9 +722,11 @@ export default async function ReportsPage({
                             ? `R${Math.round(row.lineValue).toLocaleString()}`
                             : "—"}
                         </td>
-                        <td className="py-2 text-gray-600 max-w-[12rem] truncate">
-                          {row.notes || "—"}
-                        </td>
+                        {!isClient && (
+                          <td className="py-2 text-gray-600 max-w-[12rem] truncate">
+                            {row.notes || "—"}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
