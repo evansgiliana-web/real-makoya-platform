@@ -28,6 +28,8 @@ const storeUpdateSchema = z.object({
     .array(z.object({ category: z.string().min(1), url: z.string().url() }))
     .optional(),
   ownerConsentGiven: z.boolean().optional(),
+  ownerConsentDocumentUrl: z.string().url().optional().nullable(),
+  municipalRegistrationDocumentUrl: z.string().url().optional().nullable(),
   visitCadenceDays: z.number().int().min(7).max(365).optional(),
   nextVisitDue: z.string().optional().nullable(),
   action: z.enum(["redact_pii"]).optional(),

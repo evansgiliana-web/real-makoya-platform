@@ -38,6 +38,8 @@ export default async function EditStorePage({ params }: { params: { id: string }
             url: img.url,
           })),
           ownerConsentGiven: store.ownerConsentGiven,
+          ownerConsentDocumentUrl: store.ownerConsentDocumentUrl,
+          municipalRegistrationDocumentUrl: store.municipalRegistrationDocumentUrl,
           visitCadenceDays: store.visitCadenceDays,
           nextVisitDue: store.nextVisitDue?.toISOString() ?? null,
           piiRedacted: store.piiRedacted,

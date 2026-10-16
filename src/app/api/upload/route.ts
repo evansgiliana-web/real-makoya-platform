@@ -3,9 +3,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { put } from "@vercel/blob";
 
-// Accepts a single image file from a multipart form and stores it in
-// Vercel Blob, returning a public URL to save on a Store or Assessment.
-// Any logged-in agency role (not CLIENT) can upload photos during capture.
+const ALLOWED = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+]);
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,13 +20,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Clear diagnostic when the token is missing — this is the #1 cause of "photos not uploading"
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     console.error("[upload] BLOB_READ_WRITE_TOKEN is not set");
     return NextResponse.json(
       {
         error:
-          "Photo storage is not configured. Set BLOB_READ_WRITE_TOKEN in your environment (Vercel Blob).",
+          "File storage is not configured. Set BLOB_READ_WRITE_TOKEN in your environment (Vercel Blob).",
       },
       { status: 503 }
     );
@@ -35,14 +41,17 @@ export async function POST(req: NextRequest) {
   const file = form.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  if (!file.type.startsWith("image/")) {
-    return NextResponse.json({ error: "Only image files are allowed" }, { status: 400 });
+  if (!ALLOWED.has(file.type) && !file.type.startsWith("image/")) {
+    return NextResponse.json(
+      { error: "Only images or PDF files are allowed" },
+      { status: 400 }
+    );
   }
-  if (file.size > 8 * 1024 * 1024) {
-    return NextResponse.json({ error: "Image must be under 8MB" }, { status: 400 });
+  if (file.size > 12 * 1024 * 1024) {
+    return NextResponse.json({ error: "File must be under 12MB" }, { status: 400 });
   }
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "photo.jpg";
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "document";
   const key = `real-makoya/${session.user.id}/${Date.now()}-${safeName}`;
 
   try {

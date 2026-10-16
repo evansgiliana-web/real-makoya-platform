@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import ImageUploader from "./ImageUploader";
+import DocumentUploader from "./DocumentUploader";
 
 type ProductLine = {
   category: string;
@@ -38,6 +39,8 @@ type AssessmentInitial = {
   supplierLocation?: string | null;
   distributionNotes?: string | null;
   hasValidCoA?: boolean;
+  coaDocumentUrl?: string | null;
+  healthPermitDocumentUrl?: string | null;
   coaNotes?: string | null;
   hasHealthPermit?: boolean;
   healthPermitNumber?: string | null;
@@ -96,6 +99,10 @@ export default function AssessmentForm({
   const [counterfeitPhotos, setCounterfeitPhotos] = useState<string[]>(
     initial?.photoUrls || []
   );
+  const [coaDocUrl, setCoaDocUrl] = useState<string | null>(initial?.coaDocumentUrl || null);
+  const [healthDocUrl, setHealthDocUrl] = useState<string | null>(
+    initial?.healthPermitDocumentUrl || null
+  );
   const [posInstalled, setPosInstalled] = useState(Boolean(initial?.posInstalled));
   const [scannerInstalled, setScannerInstalled] = useState(Boolean(initial?.scannerInstalled));
 
@@ -128,6 +135,8 @@ export default function AssessmentForm({
       distributionNotes: form.get("distributionNotes") || undefined,
 
       hasValidCoA: form.get("hasValidCoA") === "on",
+      coaDocumentUrl: coaDocUrl,
+      healthPermitDocumentUrl: healthDocUrl,
       coaNotes: form.get("coaNotes") || undefined,
       hasHealthPermit: form.get("hasHealthPermit") === "on",
       healthPermitNumber: form.get("healthPermitNumber") || undefined,
@@ -319,6 +328,22 @@ export default function AssessmentForm({
           <div className="col-span-2">
             <label className="label">CoA / Compliance Notes</label>
             <textarea name="coaNotes" defaultValue={initial?.coaNotes || ""} rows={2} className="input" />
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <DocumentUploader
+              label="CoA certificate (proof)"
+              hint="Upload photo or PDF of the Certificate of Analysis."
+              url={coaDocUrl}
+              onChange={setCoaDocUrl}
+            />
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <DocumentUploader
+              label="Health permit (proof)"
+              hint="Upload photo or PDF of the health permit."
+              url={healthDocUrl}
+              onChange={setHealthDocUrl}
+            />
           </div>
         </div>
       </section>

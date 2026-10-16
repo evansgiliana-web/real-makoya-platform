@@ -144,6 +144,10 @@ model Store {
   ownerConsentGiven   Boolean   @default(false)
   ownerConsentAt      DateTime?
   ownerConsentById    String?   // user id who recorded consent
+
+  // ── Supporting documents (Blob URLs) ──
+  ownerConsentDocumentUrl         String?  // signed POPIA consent form
+  municipalRegistrationDocumentUrl String? // proof of municipal registration
   // Soft-redaction: PII fields cleared, flag set, original values not recoverable via app
   piiRedacted         Boolean   @default(false)
   piiRedactedAt       DateTime?
@@ -238,6 +242,10 @@ model Assessment {
   hasHealthPermit           Boolean   @default(false)
   healthPermitNumber        String?
   healthPermitExpiry        DateTime?
+
+  // ── Supporting documents (Blob URLs) ──
+  coaDocumentUrl          String?  // scanned CoA certificate
+  healthPermitDocumentUrl String?  // health permit document
   brandAuthenticityVerified Boolean   @default(false)
   complianceNotes           String?
 

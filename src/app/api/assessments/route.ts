@@ -30,6 +30,8 @@ const assessmentSchema = z.object({
   distributionNotes: z.string().optional(),
 
   hasValidCoA: z.boolean().default(false),
+  coaDocumentUrl: z.string().url().optional().nullable(),
+  healthPermitDocumentUrl: z.string().url().optional().nullable(),
   coaNotes: z.string().optional(),
   hasHealthPermit: z.boolean().default(false),
   healthPermitNumber: z.string().optional(),

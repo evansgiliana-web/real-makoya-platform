@@ -113,6 +113,42 @@ export default async function StoreDetailPage({ params }: { params: { id: string
         </span>
       </div>
 
+
+      {/* Supporting documents — agency download */}
+      {(store.ownerConsentDocumentUrl || store.municipalRegistrationDocumentUrl) && (
+        <div className="card p-6 mb-6">
+          <h2 className="font-semibold text-brand-900 mb-3">Supporting documents</h2>
+          <ul className="space-y-2 text-sm">
+            {store.ownerConsentDocumentUrl && (
+              <li className="flex flex-wrap items-center gap-2">
+                <span className="text-gray-600">Signed POPIA consent</span>
+                <a
+                  href={store.ownerConsentDocumentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand-700 font-medium hover:underline"
+                >
+                  View / download
+                </a>
+              </li>
+            )}
+            {store.municipalRegistrationDocumentUrl && (
+              <li className="flex flex-wrap items-center gap-2">
+                <span className="text-gray-600">Municipal registration proof</span>
+                <a
+                  href={store.municipalRegistrationDocumentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand-700 font-medium hover:underline"
+                >
+                  View / download
+                </a>
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+
       {/* Labelled store photos */}
       <PhotoGallery
         title="Store photo checklist"

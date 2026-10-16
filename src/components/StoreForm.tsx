@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import StorePhotoSlots from "./StorePhotoSlots";
+import DocumentUploader from "./DocumentUploader";
 import {
   STORE_PHOTO_SLOTS,
   type SlotPhotoMap,
@@ -29,6 +30,8 @@ type StoreInitial = {
   /** Labelled images from Image model */
   images?: { category: string; url: string }[];
   ownerConsentGiven?: boolean;
+  ownerConsentDocumentUrl?: string | null;
+  municipalRegistrationDocumentUrl?: string | null;
   visitCadenceDays?: number;
   nextVisitDue?: string | null;
   piiRedacted?: boolean;
@@ -70,6 +73,12 @@ export default function StoreForm({ initial }: Props) {
     imagesToSlotMap(initial?.images)
   );
   const [consent, setConsent] = useState(Boolean(initial?.ownerConsentGiven));
+  const [consentDocUrl, setConsentDocUrl] = useState<string | null>(
+    initial?.ownerConsentDocumentUrl || null
+  );
+  const [regDocUrl, setRegDocUrl] = useState<string | null>(
+    initial?.municipalRegistrationDocumentUrl || null
+  );
 
   function captureLocation() {
     if (!navigator.geolocation) {
@@ -130,6 +139,8 @@ export default function StoreForm({ initial }: Props) {
       storePhotoUrls,
       structuredImages,
       ownerConsentGiven: consent,
+      ownerConsentDocumentUrl: consentDocUrl,
+      municipalRegistrationDocumentUrl: regDocUrl,
       visitCadenceDays: Number(form.get("visitCadenceDays") || 90),
       nextVisitDue: (form.get("nextVisitDue") as string) || undefined,
     };
@@ -285,6 +296,14 @@ export default function StoreForm({ initial }: Props) {
               defaultValue={initial?.registrationNotes || ""}
             />
           </div>
+          <div className="col-span-2">
+            <DocumentUploader
+              label="Proof of municipal registration"
+              hint="Upload certificate, permit card, or letter (image or PDF)."
+              url={regDocUrl}
+              onChange={setRegDocUrl}
+            />
+          </div>
         </div>
       </section>
 
@@ -339,6 +358,14 @@ export default function StoreForm({ initial }: Props) {
             details for retail audit and compliance purposes. *
           </span>
         </label>
+        <div className="mt-4">
+          <DocumentUploader
+            label="Signed POPIA consent form (optional but recommended)"
+            hint="Upload a photo or PDF of the signed consent form for audit trail."
+            url={consentDocUrl}
+            onChange={setConsentDocUrl}
+          />
+        </div>
       </section>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
