@@ -235,22 +235,6 @@ export default async function StoreDetailPage({ params }: { params: { id: string
         />
       </div>
 
-      {store.storePhotoUrls?.length > 0 && (
-        <div className="card p-6 mb-6">
-          <h2 className="font-semibold text-brand-900 mb-3">Store Photos</h2>
-          <div className="grid grid-cols-4 gap-2">
-            {store.storePhotoUrls.map((url) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={url}
-                src={url}
-                alt=""
-                className="h-24 w-full object-cover rounded-lg border border-gray-200"
-              />
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="card p-6 mb-6">
         <h2 className="font-semibold text-brand-900 mb-3">
@@ -263,7 +247,7 @@ export default async function StoreDetailPage({ params }: { params: { id: string
             {store.assessments.map((a) => (
               <div
                 key={a.id}
-                className="rounded-lg border border-gray-100 p-4 text-sm space-y-2"
+                className="rounded-lg border border-gray-100 p-4 text-sm space-y-2 transition hover:border-brand-200 hover:bg-brand-50/40"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">

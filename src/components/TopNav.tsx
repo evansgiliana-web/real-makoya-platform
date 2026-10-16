@@ -34,23 +34,27 @@ export default function TopNav({ role, name, email }: Props) {
   return (
     <header className="no-print sticky top-0 z-10 bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-6 md:px-8 h-16 flex items-center gap-6">
-        <Link href="/dashboard" className="flex items-center gap-2 flex-shrink-0">
+        <Link
+          href={role === "CLIENT" ? "/dashboard/reports" : "/dashboard"}
+          className="flex items-center gap-2 flex-shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        >
           <div className="h-8 w-8 rounded-lg bg-accent-500 flex items-center justify-center text-brand-900 font-bold text-sm">
             RM
           </div>
           <span className="font-semibold text-brand-900 hidden sm:inline">Real Makoya</span>
         </Link>
 
-        <nav className="flex items-center gap-1 flex-1">
+        <nav className="flex items-center gap-1 flex-1 overflow-x-auto">
           {links.map((link) => {
-            const active = link.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(link.href);
+            const active =
+              link.href === "/dashboard"
+                ? pathname === "/dashboard"
+                : pathname.startsWith(link.href);
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  active ? "bg-brand-700 text-white" : "text-gray-600 hover:bg-brand-50 hover:text-brand-900"
-                }`}
+                className={active ? "nav-link-active whitespace-nowrap" : "nav-link whitespace-nowrap"}
               >
                 {link.label}
               </Link>
@@ -66,13 +70,15 @@ export default function TopNav({ role, name, email }: Props) {
 
         <div className="relative flex-shrink-0">
           <button
+            type="button"
             onClick={() => setMenuOpen((v) => !v)}
-            className="h-9 w-9 rounded-full bg-brand-700 text-white text-sm font-semibold flex items-center justify-center"
+            className="h-9 w-9 rounded-full bg-brand-700 text-white text-sm font-semibold flex items-center justify-center transition hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+            aria-label="Account menu"
           >
             {name.charAt(0).toUpperCase() || "?"}
           </button>
           {menuOpen && (
-            <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-sm">
+            <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-sm z-20">
               <p className="font-medium text-brand-900 truncate">{name}</p>
               <p className="text-gray-500 text-xs truncate mb-1">{email}</p>
               <p className="text-xs text-accent-600 font-medium mb-3">{ROLE_LABELS[role]}</p>

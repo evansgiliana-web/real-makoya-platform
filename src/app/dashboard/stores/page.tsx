@@ -14,7 +14,11 @@ export default async function StoresPage() {
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { assessments: true } },
-      assessments: { orderBy: { visitDate: "desc" }, take: 1, select: { counterfeitRisk: true } },
+      assessments: {
+        orderBy: { visitDate: "desc" },
+        take: 1,
+        select: { counterfeitRisk: true },
+      },
     },
   });
 
@@ -54,28 +58,54 @@ export default async function StoresPage() {
               <th className="px-4 py-3">Registration</th>
               <th className="px-4 py-3">Assessments</th>
               <th className="px-4 py-3">Last Risk</th>
-              <th className="px-4 py-3"></th>
+              <th className="px-4 py-3">
+                <span className="sr-only">Open</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {stores.map((s) => (
-              <tr key={s.id} className="hover:bg-brand-50/50">
-                <td className="px-4 py-3 font-medium text-brand-900">{s.name}</td>
-                <td className="px-4 py-3 text-gray-600">
-                  {s.town}, {s.province}
+              <tr key={s.id} className="table-row-link group">
+                <td className="px-4 py-3 font-medium text-brand-900">
+                  <Link
+                    href={`/dashboard/stores/${s.id}`}
+                    className="block focus-visible:outline-none"
+                  >
+                    {s.name}
+                  </Link>
                 </td>
-                <td className="px-4 py-3 text-gray-600">{s.ownerName}</td>
+                <td className="px-4 py-3 text-gray-600">
+                  <Link href={`/dashboard/stores/${s.id}`} className="block">
+                    {s.town}, {s.province}
+                  </Link>
+                </td>
+                <td className="px-4 py-3 text-gray-600">
+                  <Link href={`/dashboard/stores/${s.id}`} className="block">
+                    {s.ownerName}
+                  </Link>
+                </td>
                 <td className="px-4 py-3">
-                  <span className={`badge ${regStyles[s.municipalRegistrationStatus]}`}>
-                    {s.municipalRegistrationStatus}
-                  </span>
+                  <Link href={`/dashboard/stores/${s.id}`} className="block">
+                    <span className={`badge ${regStyles[s.municipalRegistrationStatus]}`}>
+                      {s.municipalRegistrationStatus}
+                    </span>
+                  </Link>
                 </td>
-                <td className="px-4 py-3 text-gray-600">{s._count.assessments}</td>
                 <td className="px-4 py-3 text-gray-600">
-                  {s.assessments[0]?.counterfeitRisk?.replace("_", " ") ?? "—"}
+                  <Link href={`/dashboard/stores/${s.id}`} className="block">
+                    {s._count.assessments}
+                  </Link>
+                </td>
+                <td className="px-4 py-3 text-gray-600">
+                  <Link href={`/dashboard/stores/${s.id}`} className="block">
+                    {s.assessments[0]?.counterfeitRisk?.replace("_", " ") ?? "—"}
+                  </Link>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Link href={`/dashboard/stores/${s.id}`} className="text-brand-700 font-medium hover:underline">
+                  <Link
+                    href={`/dashboard/stores/${s.id}`}
+                    className="text-brand-700 font-medium group-hover:text-brand-900 group-hover:underline"
+                  >
                     View →
                   </Link>
                 </td>

@@ -14,29 +14,69 @@ body {
   @apply bg-white rounded-xl border border-brand-100 shadow-sm;
 }
 
+.card-interactive {
+  @apply bg-white rounded-xl border border-brand-100 shadow-sm transition
+    hover:border-brand-600 hover:shadow-md;
+}
+
 .label {
   @apply block text-sm font-medium text-brand-800 mb-1;
 }
 
 .input {
-  @apply w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent;
+  @apply w-full rounded-lg border border-gray-300 px-3 py-2 text-sm
+    focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent;
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 transition disabled:opacity-50;
+  @apply inline-flex items-center justify-center rounded-lg bg-brand-700 px-4 py-2
+    text-sm font-semibold text-white hover:bg-brand-800 transition disabled:opacity-50
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2;
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center rounded-lg border border-brand-700 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 transition;
+  @apply inline-flex items-center justify-center rounded-lg border border-brand-700 px-4 py-2
+    text-sm font-semibold text-brand-700 hover:bg-brand-50 transition
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2;
 }
 
 .badge {
   @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
 }
 
+/* Navigation */
+.nav-link {
+  @apply rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition
+    hover:bg-brand-50 hover:text-brand-900
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600;
+}
+
+.nav-link-active {
+  @apply rounded-lg px-3 py-1.5 text-sm font-medium bg-brand-700 text-white
+    hover:bg-brand-800
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600;
+}
+
+/* Tables / lists */
+.table-row-link {
+  @apply cursor-pointer transition-colors hover:bg-brand-50;
+}
+
+.table-row-link:focus-within {
+  @apply bg-brand-50;
+}
+
 /* Print-friendly client report styling */
 @media print {
-  nav, .no-print { display: none !important; }
-  body { background: white; }
-  .card { box-shadow: none !important; border: 1px solid #ddd !important; }
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+  }
 }
