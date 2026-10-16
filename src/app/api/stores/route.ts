@@ -30,6 +30,8 @@ const storeSchema = z.object({
   ownerConsentGiven: z.boolean(),
   ownerConsentDocumentUrl: z.string().url().optional().nullable(),
   municipalRegistrationDocumentUrl: z.string().url().optional().nullable(),
+  ownershipDocumentUrl: z.string().url().optional().nullable(),
+  businessLicenseDocumentUrl: z.string().url().optional().nullable(),
   // Visit cadence
   visitCadenceDays: z.number().int().min(7).max(365).optional(),
   nextVisitDue: z.string().optional().nullable(),
@@ -110,6 +112,8 @@ export async function POST(req: NextRequest) {
       ownerConsentById: session.user.id,
       ownerConsentDocumentUrl: parsed.data.ownerConsentDocumentUrl || null,
       municipalRegistrationDocumentUrl: parsed.data.municipalRegistrationDocumentUrl || null,
+      ownershipDocumentUrl: parsed.data.ownershipDocumentUrl || null,
+      businessLicenseDocumentUrl: parsed.data.businessLicenseDocumentUrl || null,
       visitCadenceDays: cadence,
       nextVisitDue: nextDue,
       createdById: session.user.id,

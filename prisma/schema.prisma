@@ -148,6 +148,8 @@ model Store {
   // ── Supporting documents (Blob URLs) ──
   ownerConsentDocumentUrl         String?  // signed POPIA consent form
   municipalRegistrationDocumentUrl String? // proof of municipal registration
+  ownershipDocumentUrl             String? // owner ID / company registration proof (agency-only)
+  businessLicenseDocumentUrl       String? // trading license / other registration proof
   // Soft-redaction: PII fields cleared, flag set, original values not recoverable via app
   piiRedacted         Boolean   @default(false)
   piiRedactedAt       DateTime?

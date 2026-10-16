@@ -40,6 +40,8 @@ export default async function EditStorePage({ params }: { params: { id: string }
           ownerConsentGiven: store.ownerConsentGiven,
           ownerConsentDocumentUrl: store.ownerConsentDocumentUrl,
           municipalRegistrationDocumentUrl: store.municipalRegistrationDocumentUrl,
+          ownershipDocumentUrl: store.ownershipDocumentUrl,
+          businessLicenseDocumentUrl: store.businessLicenseDocumentUrl,
           visitCadenceDays: store.visitCadenceDays,
           nextVisitDue: store.nextVisitDue?.toISOString() ?? null,
           piiRedacted: store.piiRedacted,

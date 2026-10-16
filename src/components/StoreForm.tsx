@@ -32,6 +32,8 @@ type StoreInitial = {
   ownerConsentGiven?: boolean;
   ownerConsentDocumentUrl?: string | null;
   municipalRegistrationDocumentUrl?: string | null;
+  ownershipDocumentUrl?: string | null;
+  businessLicenseDocumentUrl?: string | null;
   visitCadenceDays?: number;
   nextVisitDue?: string | null;
   piiRedacted?: boolean;
@@ -78,6 +80,12 @@ export default function StoreForm({ initial }: Props) {
   );
   const [regDocUrl, setRegDocUrl] = useState<string | null>(
     initial?.municipalRegistrationDocumentUrl || null
+  );
+  const [ownershipDocUrl, setOwnershipDocUrl] = useState<string | null>(
+    initial?.ownershipDocumentUrl || null
+  );
+  const [licenseDocUrl, setLicenseDocUrl] = useState<string | null>(
+    initial?.businessLicenseDocumentUrl || null
   );
 
   function captureLocation() {
@@ -141,6 +149,8 @@ export default function StoreForm({ initial }: Props) {
       ownerConsentGiven: consent,
       ownerConsentDocumentUrl: consentDocUrl,
       municipalRegistrationDocumentUrl: regDocUrl,
+      ownershipDocumentUrl: ownershipDocUrl,
+      businessLicenseDocumentUrl: licenseDocUrl,
       visitCadenceDays: Number(form.get("visitCadenceDays") || 90),
       nextVisitDue: (form.get("nextVisitDue") as string) || undefined,
     };
@@ -302,6 +312,22 @@ export default function StoreForm({ initial }: Props) {
               hint="Upload certificate, permit card, or letter (image or PDF)."
               url={regDocUrl}
               onChange={setRegDocUrl}
+            />
+          </div>
+          <div className="col-span-2">
+            <DocumentUploader
+              label="Ownership proof (ID / company registration)"
+              hint="Owner ID copy or CIPC/company docs. Agency-only — not shared on client reports."
+              url={ownershipDocUrl}
+              onChange={setOwnershipDocUrl}
+            />
+          </div>
+          <div className="col-span-2">
+            <DocumentUploader
+              label="Business / trading license (optional)"
+              hint="Any additional trading license or permit proof."
+              url={licenseDocUrl}
+              onChange={setLicenseDocUrl}
             />
           </div>
         </div>

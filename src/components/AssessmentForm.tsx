@@ -4,24 +4,8 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import ImageUploader from "./ImageUploader";
 import DocumentUploader from "./DocumentUploader";
+import ProductLinesEditor, { type ProductLineForm } from "./ProductLinesEditor";
 
-type ProductLine = {
-  category: string;
-  brand: string;
-  rank: string;
-  estimatedMonthlyUnits: string;
-  estimatedUnitPriceZar: string;
-  notes: string;
-};
-
-const emptyLine: ProductLine = {
-  category: "",
-  brand: "",
-  rank: "",
-  estimatedMonthlyUnits: "",
-  estimatedUnitPriceZar: "",
-  notes: "",
-};
 
 type AssessmentInitial = {
   id: string;
@@ -76,7 +60,7 @@ export default function AssessmentForm({
 }) {
   const router = useRouter();
   const isEdit = Boolean(initial?.id);
-  const [lines, setLines] = useState<ProductLine[]>(
+  const [lines, setLines] = useState<ProductLineForm[]>(
     initial?.productLines && initial.productLines.length > 0
       ? initial.productLines.map((p) => ({
           category: p.category || "",
@@ -88,7 +72,14 @@ export default function AssessmentForm({
             p.estimatedUnitPriceZar != null ? String(p.estimatedUnitPriceZar) : "",
           notes: p.notes || "",
         }))
-      : [{ ...emptyLine }]
+      : [{
+          category: "",
+          brand: "",
+          rank: "",
+          estimatedMonthlyUnits: "",
+          estimatedUnitPriceZar: "",
+          notes: "",
+        }]
   );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -106,9 +97,6 @@ export default function AssessmentForm({
   const [posInstalled, setPosInstalled] = useState(Boolean(initial?.posInstalled));
   const [scannerInstalled, setScannerInstalled] = useState(Boolean(initial?.scannerInstalled));
 
-  function updateLine(i: number, field: keyof ProductLine, value: string) {
-    setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, [field]: value } : l)));
-  }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -199,71 +187,8 @@ export default function AssessmentForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
       {/* Top-selling product lines */}
-      <section className="card p-6">
-        <h2 className="font-semibold text-brand-900 mb-1">Top-Selling Product Lines</h2>
-        <p className="text-xs text-gray-500 mb-4">
-          Log the most-sold FMCG categories and brands to build a live demand picture.
-        </p>
+            <ProductLinesEditor lines={lines} onChange={setLines} />
 
-        {lines.map((line, i) => (
-          <div key={i} className="grid grid-cols-12 gap-2 mb-3 items-start">
-            <input
-              placeholder="Category (e.g. Beverages)"
-              className="input col-span-2"
-              value={line.category}
-              onChange={(e) => updateLine(i, "category", e.target.value)}
-            />
-            <input
-              placeholder="Brand"
-              className="input col-span-2"
-              value={line.brand}
-              onChange={(e) => updateLine(i, "brand", e.target.value)}
-            />
-            <input
-              placeholder="Rank"
-              type="number"
-              className="input col-span-1"
-              value={line.rank}
-              onChange={(e) => updateLine(i, "rank", e.target.value)}
-            />
-            <input
-              placeholder="Est. monthly units"
-              type="number"
-              className="input col-span-2"
-              value={line.estimatedMonthlyUnits}
-              onChange={(e) => updateLine(i, "estimatedMonthlyUnits", e.target.value)}
-            />
-            <input
-              placeholder="Avg price (R)"
-              type="number"
-              step="0.01"
-              className="input col-span-2"
-              value={line.estimatedUnitPriceZar}
-              onChange={(e) => updateLine(i, "estimatedUnitPriceZar", e.target.value)}
-            />
-            <input
-              placeholder="Notes"
-              className="input col-span-2"
-              value={line.notes}
-              onChange={(e) => updateLine(i, "notes", e.target.value)}
-            />
-            <button
-              type="button"
-              onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
-              className="col-span-1 text-red-500 text-sm"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => setLines((prev) => [...prev, { ...emptyLine }])}
-          className="btn-secondary text-xs"
-        >
-          + Add product line
-        </button>
-      </section>
 
       {/* Trade & distribution routes */}
       <section className="card p-6">
