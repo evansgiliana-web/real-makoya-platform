@@ -9,6 +9,7 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import PhotoGallery from "@/components/PhotoGallery";
 import { sortImagesBySlot, slotLabel } from "@/lib/photoSlots";
+import VisitDocumentsList, { allVisitDocsFromAssessment } from "@/components/VisitDocumentsList";
 
 const regStyles: Record<string, string> = {
   REGISTERED: "bg-green-100 text-green-700",
@@ -328,6 +329,13 @@ export default async function StoreDetailPage({ params }: { params: { id: string
                 {a.counterfeitNotes && (
                   <p className="text-gray-600">Notes: {a.counterfeitNotes}</p>
                 )}
+                <div className="pt-2 border-t border-gray-50">
+                  <VisitDocumentsList
+                    title="Visit documents"
+                    docs={allVisitDocsFromAssessment(a)}
+                    emptyMessage="No documents or evidence photos for this visit."
+                  />
+                </div>
               </div>
             ))}
           </div>

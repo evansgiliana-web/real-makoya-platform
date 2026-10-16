@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import PrintButton from "@/components/PrintButton";
 import ReportFilters from "@/components/ReportFilters";
+import VisitDocumentsList, { complianceDocsFromAssessment } from "@/components/VisitDocumentsList";
 
 function pct(n: number, d: number) {
   if (!d) return 0;
@@ -320,6 +321,14 @@ export default async function ReportsPage({
               </>
             )}
           </dl>
+
+          <section>
+            <VisitDocumentsList
+              title="Compliance documents (this visit)"
+              docs={complianceDocsFromAssessment(singleRow)}
+              emptyMessage="No CoA or health permit files uploaded for this visit."
+            />
+          </section>
 
           {singleRow.store.images?.length > 0 && (
             <section>
