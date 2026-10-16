@@ -6,6 +6,8 @@ import Link from "next/link";
 import PrintButton from "@/components/PrintButton";
 import ReportFilters from "@/components/ReportFilters";
 import VisitDocumentsList, { complianceDocsFromAssessment } from "@/components/VisitDocumentsList";
+import PhotoGallery from "@/components/PhotoGallery";
+import { sortImagesBySlot, slotLabel } from "@/lib/photoSlots";
 
 function pct(n: number, d: number) {
   if (!d) return 0;
@@ -209,6 +211,59 @@ export default async function ReportsPage({
   const provinces = Array.from(
     new Set(allStoreOptions.map((s) => s.province))
   ).sort();
+
+
+  // Phase 4 — product line detail rows (for combined + filters)
+  type ProductRow = {
+    storeName: string;
+    town: string;
+    province: string;
+    brand: string;
+    category: string;
+    rank: number | null;
+    units: number | null;
+    unitPrice: number | null;
+    lineValue: number | null;
+    notes: string | null;
+    visitDate: Date;
+  };
+  const productRows: ProductRow[] = [];
+  for (const a of scoped) {
+    for (const p of a.productLines) {
+      const units = p.estimatedMonthlyUnits;
+      const price = p.estimatedUnitPriceZar;
+      productRows.push({
+        storeName: a.store.name,
+        town: a.store.town,
+        province: a.store.province,
+        brand: p.brand,
+        category: p.category,
+        rank: p.rank,
+        units,
+        unitPrice: price,
+        lineValue:
+          units != null && price != null ? units * price : null,
+        notes: p.notes,
+        visitDate: a.visitDate,
+      });
+    }
+  }
+  productRows.sort((a, b) => (b.lineValue || 0) - (a.lineValue || 0));
+
+  // Labelled photos across stores in filter (cap for report size)
+  const combinedPhotoItems: { url: string; label: string; category: string }[] = [];
+  for (const a of directoryRows) {
+    const imgs = sortImagesBySlot(a.store.images || []);
+    for (const img of imgs) {
+      combinedPhotoItems.push({
+        url: img.url,
+        label: `${a.store.name} — ${slotLabel(img.category)}`,
+        category: img.category,
+      });
+    }
+  }
+  const photoPreview = combinedPhotoItems.slice(0, 24);
+
 
   const view = searchParams.view === "by-store" ? "by-store" : "combined";
   const singleStoreId =
@@ -585,6 +640,82 @@ export default async function ReportsPage({
                 </div>
               ))}
             </div>
+          </section>
+
+          <section>
+            <h3 className="font-semibold text-brand-900 mb-2">
+              Product line detail ({productRows.length})
+            </h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Estimated monthly movement by brand within the current filter. Line value =
+              units × unit price where both were captured.
+            </p>
+            {productRows.length === 0 ? (
+              <p className="text-sm text-gray-500">No product lines in this filter.</p>
+            ) : (
+              <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-xs uppercase text-gray-500 border-b sticky top-0 bg-white">
+                    <tr>
+                      <th className="py-2 pr-3">Store</th>
+                      <th className="py-2 pr-3">Location</th>
+                      <th className="py-2 pr-3">Brand</th>
+                      <th className="py-2 pr-3">Category</th>
+                      <th className="py-2 pr-3">Rank</th>
+                      <th className="py-2 pr-3">Units/mo</th>
+                      <th className="py-2 pr-3">Unit price</th>
+                      <th className="py-2 pr-3">Line value</th>
+                      <th className="py-2">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {productRows.map((row, i) => (
+                      <tr key={`${row.storeName}-${row.brand}-${i}`} className="hover:bg-brand-50/40">
+                        <td className="py-2 pr-3 font-medium text-brand-900">{row.storeName}</td>
+                        <td className="py-2 pr-3 text-gray-600">
+                          {row.town}, {row.province}
+                        </td>
+                        <td className="py-2 pr-3">{row.brand}</td>
+                        <td className="py-2 pr-3 text-gray-600">{row.category}</td>
+                        <td className="py-2 pr-3">{row.rank ?? "—"}</td>
+                        <td className="py-2 pr-3">
+                          {row.units != null ? row.units.toLocaleString() : "—"}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {row.unitPrice != null ? `R${row.unitPrice.toFixed(2)}` : "—"}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {row.lineValue != null
+                            ? `R${Math.round(row.lineValue).toLocaleString()}`
+                            : "—"}
+                        </td>
+                        <td className="py-2 text-gray-600 max-w-[12rem] truncate">
+                          {row.notes || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="no-print">
+            <PhotoGallery
+              title={`Store visual audit (${photoPreview.length}${
+                combinedPhotoItems.length > photoPreview.length
+                  ? ` of ${combinedPhotoItems.length}`
+                  : ""
+              })`}
+              items={photoPreview}
+              emptyMessage="No labelled store photos in this filter yet."
+            />
+            {combinedPhotoItems.length > 24 && (
+              <p className="text-xs text-gray-500 -mt-4 mb-4">
+                Showing first 24 photos for performance. Narrow by province or store to see more
+                per location, or open an individual store report.
+              </p>
+            )}
           </section>
 
           <section className="grid md:grid-cols-2 gap-6">
