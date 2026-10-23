@@ -22,12 +22,18 @@ export default function UserRow({ user, roleLabel }: Props) {
 
   async function toggleActive() {
     setLoading(true);
-    await fetch(`/api/users/${user.id}`, {
+    const res = await fetch(`/api/users/${user.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !user.active }),
     });
     setLoading(false);
+    if (!res.ok) {
+      // Show why (e.g. only a Super Admin can change an Admin) instead of failing silently.
+      const data = await res.json().catch(() => ({}));
+      alert(typeof data.error === "string" ? data.error : "Could not update this user.");
+      return;
+    }
     router.refresh();
   }
 

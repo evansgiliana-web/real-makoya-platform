@@ -1,14 +1,16 @@
-
-import bcrypt from "bcryptjs";
-import { PrismaClient, Role } from "@prisma/client";
+import { PrismaClient, Role, OrgRole } from "@prisma/client";
+import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // ── Super Admin (from .env, so you control the real login credentials) ──
-  const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.com";
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "Outlook@001";
+  console.log("[seed] Starting…");
+
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@realmakoya.co.za";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "ChangeMe123!";
   const adminName = process.env.SEED_ADMIN_NAME || "Real Makoya Super Admin";
+
+  const adminHash: string = await hash(adminPassword, 12);
 
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
   const superAdmin =
@@ -17,166 +19,91 @@ async function main() {
       data: {
         name: adminName,
         email: adminEmail,
-        passwordHash: await bcrypt.hash(adminPassword, 12),
-        role: "SUPER_ADMIN",
+        passwordHash: adminHash,
+        role: Role.SUPER_ADMIN,
       },
     }));
+  console.log("[seed] Super admin OK:", superAdmin.email);
 
-  // ── A sample Field Agent, so you can log in and try the capture flow ──
+  const agentHash: string = await hash("AgentDemo123!", 12);
   const agent =
     (await prisma.user.findUnique({ where: { email: "agent@realmakoya.co.za" } })) ||
     (await prisma.user.create({
       data: {
         name: "Thabo Mokoena",
         email: "agent@realmakoya.co.za",
-        passwordHash: await bcrypt.hash("AgentDemo123!", 12),
-        role: "FIELD_AGENT",
+        passwordHash: agentHash,
+        role: Role.FIELD_AGENT,
         invitedById: superAdmin.id,
       },
     }));
+  console.log("[seed] Agent OK:", agent.email);
 
-  // ── A demo FMCG Organization with two brands and one Owner login ──
-  let org = await prisma.organization.findFirst({ where: { name: "Demo FMCG Co." } });
+  // Demo FMCG org + brands + CLIENT users (adjust if your model names differ)
+  let org = await prisma.organization.findFirst({
+    where: { name: "Tiger Brands (Demo)" },
+    include: { brands: true },
+  });
+
   if (!org) {
+    const clientHash: string = await hash("ClientDemo123!", 12);
+
     org = await prisma.organization.create({
       data: {
-        name: "Demo FMCG Co.",
+        name: "Tiger Brands (Demo)",
         brands: {
           create: [
-            { name: "Omo", category: "Laundry" },
-            { name: "Sunlight", category: "Household Cleaning" },
+            { name: "Koo", category: "Food" },
+            { name: "Albany", category: "Bakery" },
+            { name: "Omo", category: "Household Cleaning" },
           ],
         },
-      },
-    });
-  }
-
-  const existingOwner = await prisma.user.findUnique({
-    where: { email: "client@tigerbrands-demo.co.za" },
-  });
-  if (!existingOwner) {
-    await prisma.orgMembership.create({
-      data: {
-        organization: { connect: { id: org.id } },
-        orgRole: "OWNER",
-        allBrandsAccess: true,
-        user: {
-          create: {
-            name: "Demo FMCG Contact",
-            email: "client@tigerbrands-demo.co.za",
-            passwordHash: await bcrypt.hash("ClientDemo123!", 12),
-            role: Role.CLIENT,
-            invitedById: superAdmin.id,
-          },
-        },
-      },
-    });
-  }
-
-  // ── A sample store with a full assessment, so reports have something to show ──
-  const existingStore = await prisma.store.findFirst({ where: { name: "Thabo's Spaza Shop" } });
-
-  const store =
-    existingStore ||
-    (await prisma.store.create({
-      data: {
-        name: "Thabo's Spaza Shop",
-        tradingAs: "Thabo Tuckshop",
-        address: "12 Vilakazi Street",
-        town: "Soweto",
-        province: "Gauteng",
-        latitude: -26.2485,
-        longitude: 27.9031,
-        ownerName: "Thabo Nkosi",
-        ownerContactNumber: "082 123 4567",
-        ownerIdOrCompanyRegNumber: "8001015009087",
-        municipalRegistrationStatus: "REGISTERED",
-        municipalRegistrationNumber: "JHB-SPZ-004521",
-        registrationNotes: "Registered with City of Johannesburg informal trading unit.",
-        storeTelephoneNumber: "011 987 6543",
-        ownerConsentGiven: true,
-        ownerConsentAt: new Date(),
-        ownerConsentById: superAdmin.id,
-        visitCadenceDays: 90,
-        nextVisitDue: new Date(Date.now() + 90 * 86400000),
-        createdById: superAdmin.id,
-      },
-    }));
-
-  const existingAssessment = await prisma.assessment.findFirst({ where: { storeId: store.id } });
-
-  if (!existingAssessment) {
-    const brands = await prisma.brand.findMany({ where: { organizationId: org.id } });
-    const omoId = brands.find((b) => b.name === "Omo")?.id ?? null;
-    const sunlightId = brands.find((b) => b.name === "Sunlight")?.id ?? null;
-
-    await prisma.assessment.create({
-      data: {
-        storeId: store.id,
-        agentId: agent.id,
-        status: "REVIEWED",
-        reviewedById: superAdmin.id,
-        reviewedAt: new Date(),
-
-        productLines: {
+        memberships: {
           create: [
             {
-              category: "Laundry",
-              brand: "Omo",
-              brandId: omoId,
-              rank: 1,
-              estimatedMonthlyUnits: 1000,
-              estimatedUnitPriceZar: 25.5,
-              notes: "Top seller, restocked weekly.",
+              orgRole: OrgRole.OWNER,
+              allBrandsAccess: true,
+              brandIds: [],
+              user: {
+                create: {
+                  name: "Tiger Org Admin",
+                  email: "admin@tigerbrands-demo.co.za",
+                  passwordHash: clientHash,
+                  role: Role.CLIENT,
+                  invitedById: superAdmin.id,
+                },
+              },
             },
             {
-              category: "Household Cleaning",
-              brand: "Sunlight",
-              brandId: sunlightId,
-              rank: 2,
-              estimatedMonthlyUnits: 66,
-              estimatedUnitPriceZar: 18.0,
+              orgRole: OrgRole.MEMBER,
+              allBrandsAccess: true,
+              brandIds: [],
+              user: {
+                create: {
+                  name: "Tiger Brand Analyst",
+                  email: "client@tigerbrands-demo.co.za",
+                  passwordHash: clientHash,
+                  role: Role.CLIENT,
+                  invitedById: superAdmin.id,
+                },
+              },
             },
           ],
         },
-
-        sourceType: "FORMAL_WHOLESALER",
-        supplierName: "Jumbo Cash & Carry",
-        supplierLocation: "Booysens, Johannesburg",
-        distributionNotes: "Owner collects stock weekly by bakkie.",
-
-        hasValidCoA: true,
-        hasHealthPermit: true,
-        healthPermitNumber: "HP-2026-00812",
-        brandAuthenticityVerified: true,
-
-        counterfeitRisk: "LOW",
-        packagingIssueFlag: false,
-        batchCodeIssueFlag: false,
-        pricingAnomalyFlag: false,
-        counterfeitNotes: "Minor packaging wear on one Omo unit, likely just shelf handling.",
-
-        totalSkuCount: 180,
-        estimatedMonthlyTurnoverZar: 45000,
-
-        packingShelvesCount: 6,
-        posInstalled: true,
-        posBrand: "Yoco",
-        posModel: "Yoco Go",
-        internetConnectivity: "MOBILE_DATA",
-        scannerInstalled: false,
-
-        internalNotes: "Friendly owner, open to a follow-up visit next quarter.",
       },
+      include: { brands: true },
     });
+    console.log("[seed] Org created:", org.name);
+  } else {
+    console.log("[seed] Org already exists:", org.name);
   }
 
   console.log("──────────────────────────────────────────");
   console.log("Seed complete. Demo logins:");
-  console.log(`  Super Admin → ${adminEmail} / ${adminPassword}`);
-  console.log("  Field Agent → agent@realmakoya.co.za / AgentDemo123!");
-  console.log("  FMCG Client → client@tigerbrands-demo.co.za / ClientDemo123!");
-  console.log("Change these passwords after your first login.");
+  console.log(`  Super Admin     → ${adminEmail} / ${adminPassword}`);
+  console.log("  Field Agent     → agent@realmakoya.co.za / AgentDemo123!");
+  console.log("  Tiger Org Admin → admin@tigerbrands-demo.co.za / ClientDemo123!");
+  console.log("  Brand Analyst   → client@tigerbrands-demo.co.za / ClientDemo123!");
   console.log("──────────────────────────────────────────");
 }
 

@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "paths": {
+      "next/server": ["./mocks/next-server.ts"],
+      "next-auth": ["./mocks/next-auth.ts"],
+      "@vercel/blob": ["./mocks/vercel-blob.ts"],
+      "@/lib/auth": ["./mocks/lib-auth.ts"],
+      "@/lib/prisma": ["./mocks/lib-prisma.ts"],
+      "@/lib/audit": ["./mocks/lib-audit.ts"],
+      "@/*": ["../src/*"]
+    }
+  }
+}

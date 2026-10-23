@@ -7,11 +7,12 @@ import { writeAuditLog } from "@/lib/audit";
 import { Role, OrgRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { passwordSchema, firstIssue } from "@/lib/validation";
 
 const inviteSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(8),
+  password: passwordSchema,
   orgRole: z.enum(["OWNER", "MEMBER"]).default("MEMBER"),
   allBrandsAccess: z.boolean().default(true),
   brandIds: z.array(z.string()).default([]),
@@ -50,7 +51,10 @@ export async function POST(
   const body = await req.json();
   const parsed = inviteSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: firstIssue(parsed.error), details: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   const email = parsed.data.email.toLowerCase().trim();

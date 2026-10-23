@@ -6,6 +6,7 @@ import { can } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit";
 import { sendHighRiskAlert } from "@/lib/email";
 import { matchBrandIds } from "@/lib/brandMatch";
+import { canEditAssessment, resolveEditedStatus, diffRecords } from "@/lib/policies";
 import { z } from "zod";
 
 const productLineSchema = z.object({
@@ -145,6 +146,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Field agents may only edit assessments they captured themselves.
+  if (!canEditAssessment(session.user.role, session.user.id, existing.agentId)) {
+    return NextResponse.json(
+      { error: "You can only edit assessments you captured yourself." },
+      { status: 403 }
+    );
+  }
+
   // Field agents cannot push status to REVIEWED themselves
   if (
     parsed.data.status === "REVIEWED" &&
@@ -160,6 +169,30 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   void action;
 
   const data: Record<string, unknown> = { ...rest };
+
+  // QA gate. Editing an assessment ALWAYS sends it back for review, otherwise a
+  // field agent could change numbers that a client is already looking at.
+  // Only a reviewer who explicitly saves as REVIEWED/FLAGGED keeps a reviewed
+  // state, and nobody can review work they captured themselves.
+  const actorCanReview = can(session.user.role, "assessment:review");
+  if (
+    actorCanReview &&
+    (parsed.data.status === "REVIEWED" || parsed.data.status === "FLAGGED") &&
+    existing.agentId === session.user.id &&
+    session.user.role !== "SUPER_ADMIN"
+  ) {
+    return NextResponse.json(
+      { error: "You cannot review an assessment you captured yourself." },
+      { status: 403 }
+    );
+  }
+  const outcome = resolveEditedStatus({ actorCanReview, requested: parsed.data.status });
+  data.status = outcome.status;
+  data.reviewedById = outcome.recordReviewer ? session.user.id : null;
+  data.reviewedAt = outcome.recordReviewer ? new Date() : null;
+  // Reviewer notes belong to the reviewer: an agent's edit can't overwrite them.
+  if (!actorCanReview) delete data.reviewNotes;
+
   if (visitDate) data.visitDate = new Date(visitDate);
   if (healthPermitExpiry !== undefined) {
     data.healthPermitExpiry = healthPermitExpiry ? new Date(healthPermitExpiry) : null;
@@ -189,6 +222,36 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     include: { store: true, agent: { select: { name: true } } },
   });
 
+  const TRACKED_FIELDS = [
+    "visitDate", "status", "reviewNotes", "sourceType", "supplierName", "supplierLocation",
+    "distributionNotes", "hasValidCoA", "coaNotes", "hasHealthPermit", "healthPermitNumber",
+    "healthPermitExpiry", "brandAuthenticityVerified", "complianceNotes", "counterfeitRisk",
+    "packagingIssueFlag", "batchCodeIssueFlag", "pricingAnomalyFlag", "counterfeitNotes",
+    "photoUrls", "packingShelvesCount", "posInstalled", "posBrand", "posModel", "posPhotoUrls",
+    "internetConnectivity", "scannerInstalled", "scannerDetails", "equipmentPhotoUrls",
+    "totalSkuCount", "estimatedMonthlyTurnoverZar", "internalNotes", "productLines",
+  ] as const;
+  const summariseLines = (
+    lines: {
+      brand: string;
+      category: string;
+      rank?: number | null;
+      estimatedMonthlyUnits?: number | null;
+      estimatedUnitPriceZar?: number | null;
+    }[]
+  ) =>
+    lines
+      .map(
+        (l) =>
+          `${l.brand} | ${l.category} | rank ${l.rank ?? "-"} | ${l.estimatedMonthlyUnits ?? "-"} units | R${l.estimatedUnitPriceZar ?? "-"}`
+      )
+      .sort();
+  const diff = diffRecords(
+    { ...existing, productLines: summariseLines(existing.productLines) },
+    { ...assessment, productLines: summariseLines(productLines ?? existing.productLines) },
+    TRACKED_FIELDS
+  );
+
   await writeAuditLog({
     actorId: session.user.id,
     actorEmail: session.user.email,
@@ -196,13 +259,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     action: "assessment.update",
     entityType: "Assessment",
     entityId: params.id,
-    before: {
-      status: existing.status,
-      counterfeitRisk: existing.counterfeitRisk,
-    },
-    after: {
-      status: assessment.status,
-      counterfeitRisk: assessment.counterfeitRisk,
+    before: diff.before,
+    after: diff.after,
+    meta: {
+      changedFields: diff.changed,
+      sentBackForReview: existing.status === "REVIEWED" && outcome.status !== "REVIEWED",
     },
   });
 

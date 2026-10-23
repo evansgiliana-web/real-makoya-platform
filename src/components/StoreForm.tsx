@@ -88,6 +88,14 @@ export default function StoreForm({ initial }: Props) {
     initial?.businessLicenseDocumentUrl || null
   );
 
+  // A saved document opens through the authenticated route. A file that was just
+  // uploaded or replaced isn't saved yet, so it has no link until the store is saved.
+  function docViewHref(kind: string, current: string | null, saved?: string | null) {
+    return initial?.id && current && current === saved
+      ? `/api/stores/${initial.id}/documents/${kind}`
+      : null;
+  }
+
   function captureLocation() {
     if (!navigator.geolocation) {
       setGeoStatus("Geolocation isn't supported on this device/browser.");
@@ -312,6 +320,8 @@ export default function StoreForm({ initial }: Props) {
               hint="Upload certificate, permit card, or letter (image or PDF)."
               url={regDocUrl}
               onChange={setRegDocUrl}
+              sensitive
+              viewHref={docViewHref("registration", regDocUrl, initial?.municipalRegistrationDocumentUrl)}
             />
           </div>
           <div className="col-span-2">
@@ -320,6 +330,8 @@ export default function StoreForm({ initial }: Props) {
               hint="Owner ID copy or CIPC/company docs. Agency-only — not shared on client reports."
               url={ownershipDocUrl}
               onChange={setOwnershipDocUrl}
+              sensitive
+              viewHref={docViewHref("ownership", ownershipDocUrl, initial?.ownershipDocumentUrl)}
             />
           </div>
           <div className="col-span-2">
@@ -328,6 +340,8 @@ export default function StoreForm({ initial }: Props) {
               hint="Any additional trading license or permit proof."
               url={licenseDocUrl}
               onChange={setLicenseDocUrl}
+              sensitive
+              viewHref={docViewHref("license", licenseDocUrl, initial?.businessLicenseDocumentUrl)}
             />
           </div>
         </div>
@@ -390,6 +404,8 @@ export default function StoreForm({ initial }: Props) {
             hint="Upload a photo or PDF of the signed consent form for audit trail."
             url={consentDocUrl}
             onChange={setConsentDocUrl}
+            sensitive
+            viewHref={docViewHref("consent", consentDocUrl, initial?.ownerConsentDocumentUrl)}
           />
         </div>
       </section>

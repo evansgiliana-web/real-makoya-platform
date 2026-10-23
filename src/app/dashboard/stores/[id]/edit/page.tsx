@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import StoreForm from "@/components/StoreForm";
+import { requireAgency } from "@/lib/guards";
 
 export default async function EditStorePage({ params }: { params: { id: string } }) {
+  await requireAgency();
   const store = await prisma.store.findUnique({
     where: { id: params.id },
     include: { images: true },

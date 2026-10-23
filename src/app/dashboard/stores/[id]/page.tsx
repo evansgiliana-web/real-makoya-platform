@@ -4,9 +4,9 @@ import Link from "next/link";
 import StoreMapClient from "@/components/StoreMapClient";
 import ReviewButton from "@/components/ReviewButton";
 import RedactPiiButton from "@/components/RedactPiiButton";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAgency } from "@/lib/guards";
 import { can } from "@/lib/rbac";
+import { canViewOwnerDocuments } from "@/lib/policies";
 import PhotoGallery from "@/components/PhotoGallery";
 import { sortImagesBySlot, slotLabel } from "@/lib/photoSlots";
 import VisitDocumentsList, { allVisitDocsFromAssessment } from "@/components/VisitDocumentsList";
@@ -34,7 +34,8 @@ const statusStyles: Record<string, string> = {
 };
 
 export default async function StoreDetailPage({ params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
+  // Agency staff only: FMCG logins are redirected away before any owner data is loaded.
+  const session = await requireAgency();
   const store = await prisma.store.findUnique({
     where: { id: params.id },
     include: {
@@ -48,6 +49,23 @@ export default async function StoreDetailPage({ params }: { params: { id: string
   });
 
   if (!store) notFound();
+
+  // Owner documents open only through the authenticated, audited download route,
+  // and only for admins or the agent who captured this store.
+  const docsAllowed = canViewOwnerDocuments({
+    role: session.user.role,
+    userId: session.user.id,
+    storeCreatedById: store.createdById,
+  });
+  const docLink = (kind: string) => `/api/stores/${store.id}/documents/${kind}`;
+  const docAnchor = (kind: string) =>
+    docsAllowed ? (
+      <a href={docLink(kind)} target="_blank" rel="noreferrer" className="text-brand-700 font-medium hover:underline">
+        View / download
+      </a>
+    ) : (
+      <span className="text-gray-400">Restricted to admins and the capturing agent</span>
+    );
 
   const auditLogs = await prisma.auditLog.findMany({
     where: {
@@ -123,39 +141,31 @@ export default async function StoreDetailPage({ params }: { params: { id: string
         <div className="card p-6 mb-6">
           <h2 className="font-semibold text-brand-900 mb-3">Supporting documents</h2>
           <p className="text-xs text-gray-500 mb-3">
-            Ownership and registration proofs — agency only (not on FMCG client reports).
+            Ownership and registration proofs. Stored encrypted; every view is logged. Not on FMCG client reports.
           </p>
           <ul className="space-y-2 text-sm">
             {store.ownerConsentDocumentUrl && (
               <li className="flex flex-wrap items-center gap-2">
                 <span className="text-gray-600 min-w-[12rem]">Signed POPIA consent</span>
-                <a href={store.ownerConsentDocumentUrl} target="_blank" rel="noreferrer" className="text-brand-700 font-medium hover:underline">
-                  View / download
-                </a>
+                {docAnchor("consent")}
               </li>
             )}
             {store.municipalRegistrationDocumentUrl && (
               <li className="flex flex-wrap items-center gap-2">
                 <span className="text-gray-600 min-w-[12rem]">Municipal registration</span>
-                <a href={store.municipalRegistrationDocumentUrl} target="_blank" rel="noreferrer" className="text-brand-700 font-medium hover:underline">
-                  View / download
-                </a>
+                {docAnchor("registration")}
               </li>
             )}
             {store.ownershipDocumentUrl && (
               <li className="flex flex-wrap items-center gap-2">
                 <span className="text-gray-600 min-w-[12rem]">Ownership proof (ID / company)</span>
-                <a href={store.ownershipDocumentUrl} target="_blank" rel="noreferrer" className="text-brand-700 font-medium hover:underline">
-                  View / download
-                </a>
+                {docAnchor("ownership")}
               </li>
             )}
             {store.businessLicenseDocumentUrl && (
               <li className="flex flex-wrap items-center gap-2">
                 <span className="text-gray-600 min-w-[12rem]">Business / trading license</span>
-                <a href={store.businessLicenseDocumentUrl} target="_blank" rel="noreferrer" className="text-brand-700 font-medium hover:underline">
-                  View / download
-                </a>
+                {docAnchor("license")}
               </li>
             )}
           </ul>

@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit";
 import { z } from "zod";
+import { ownerDocumentUrlSchema } from "@/lib/validation";
+import { deleteBlobs } from "@/lib/blobStore";
+import { OWNER_DOCUMENT_KINDS } from "@/lib/policies";
 
 const storeUpdateSchema = z.object({
   name: z.string().min(2).optional(),
@@ -28,10 +31,10 @@ const storeUpdateSchema = z.object({
     .array(z.object({ category: z.string().min(1), url: z.string().url() }))
     .optional(),
   ownerConsentGiven: z.boolean().optional(),
-  ownerConsentDocumentUrl: z.string().url().optional().nullable(),
-  municipalRegistrationDocumentUrl: z.string().url().optional().nullable(),
-  ownershipDocumentUrl: z.string().url().optional().nullable(),
-  businessLicenseDocumentUrl: z.string().url().optional().nullable(),
+  ownerConsentDocumentUrl: ownerDocumentUrlSchema,
+  municipalRegistrationDocumentUrl: ownerDocumentUrlSchema,
+  ownershipDocumentUrl: ownerDocumentUrlSchema,
+  businessLicenseDocumentUrl: ownerDocumentUrlSchema,
   visitCadenceDays: z.number().int().min(7).max(365).optional(),
   nextVisitDue: z.string().optional().nullable(),
   action: z.enum(["redact_pii"]).optional(),
@@ -88,11 +91,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         ownerContactNumber: null,
         ownerIdOrCompanyRegNumber: null,
         storeTelephoneNumber: null,
+        // The owner's ID copy, consent form and registration papers are personal
+        // information too: erase the files, not just the typed-in numbers.
+        ownerConsentDocumentUrl: null,
+        municipalRegistrationDocumentUrl: null,
+        ownershipDocumentUrl: null,
+        businessLicenseDocumentUrl: null,
         piiRedacted: true,
         piiRedactedAt: new Date(),
         piiRedactedById: session.user.id,
       },
     });
+
+    const removedDocumentKinds = (
+      Object.keys(OWNER_DOCUMENT_KINDS) as (keyof typeof OWNER_DOCUMENT_KINDS)[]
+    ).filter((kind) => existing[OWNER_DOCUMENT_KINDS[kind]]);
+    await deleteBlobs(Object.values(OWNER_DOCUMENT_KINDS).map((field) => existing[field]));
 
     await writeAuditLog({
       actorId: session.user.id,
@@ -106,7 +120,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         ownerIdOrCompanyRegNumber: existing.ownerIdOrCompanyRegNumber,
         storeTelephoneNumber: existing.storeTelephoneNumber,
       },
-      after: { piiRedacted: true },
+      after: { piiRedacted: true, documentsDeleted: removedDocumentKinds },
     });
 
     return NextResponse.json(redacted);
@@ -148,6 +162,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     where: { id: params.id },
     data,
   });
+
+  // A document that was replaced or removed must not linger in storage.
+  await deleteBlobs(
+    Object.values(OWNER_DOCUMENT_KINDS).map((field) => {
+      const next = data[field];
+      return next !== undefined && next !== existing[field] ? existing[field] : null;
+    })
+  );
 
   if (structuredImages) {
     // Replace labelled slot images for this store (idempotent resync)
@@ -193,7 +215,17 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const doomed = await prisma.store.findUnique({
+    where: { id: params.id },
+    select: {
+      ownerConsentDocumentUrl: true,
+      municipalRegistrationDocumentUrl: true,
+      ownershipDocumentUrl: true,
+      businessLicenseDocumentUrl: true,
+    },
+  });
   await prisma.store.delete({ where: { id: params.id } });
+  if (doomed) await deleteBlobs(Object.values(OWNER_DOCUMENT_KINDS).map((field) => doomed[field]));
 
   await writeAuditLog({
     actorId: session.user.id,

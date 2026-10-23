@@ -1,6 +1,8 @@
 import StoreForm from "@/components/StoreForm";
+import { requireAgency } from "@/lib/guards";
 
-export default function NewStorePage() {
+export default async function NewStorePage() {
+  await requireAgency();
   return (
     <div>
       <h1 className="text-2xl font-bold text-brand-900 mb-1">Capture New Store</h1>

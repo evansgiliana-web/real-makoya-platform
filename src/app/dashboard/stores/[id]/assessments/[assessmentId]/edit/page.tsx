@@ -1,12 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import AssessmentForm from "@/components/AssessmentForm";
+import { requireAgency } from "@/lib/guards";
 
 export default async function EditAssessmentPage({
   params,
 }: {
   params: { id: string; assessmentId: string };
 }) {
+  await requireAgency();
   const assessment = await prisma.assessment.findUnique({
     where: { id: params.assessmentId },
     include: { productLines: true, store: true },

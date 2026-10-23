@@ -10,6 +10,11 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // The brand catalog reveals which companies are Real Makoya clients, so FMCG
+  // logins must never be able to read it. Only field capture needs it.
+  if (session.user.role === "CLIENT") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const catalogBrands = await prisma.brand.findMany({
     select: { name: true, category: true },

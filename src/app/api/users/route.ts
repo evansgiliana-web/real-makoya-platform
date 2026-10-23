@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
+import { writeAuditLog } from "@/lib/audit";
+import { passwordSchema, firstIssue } from "@/lib/validation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -11,7 +13,7 @@ import { z } from "zod";
 const userSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(8),
+  password: passwordSchema,
   role: z.enum(["SUPER_ADMIN", "ADMIN", "FIELD_AGENT"]),
 });
 
@@ -38,10 +40,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
   const parsed = userSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: firstIssue(parsed.error), details: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   // Only a SUPER_ADMIN can create another SUPER_ADMIN or ADMIN account.
@@ -68,6 +78,16 @@ export async function POST(req: NextRequest) {
       invitedById: session.user.id,
     },
     select: { id: true, name: true, email: true, role: true },
+  });
+
+  await writeAuditLog({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    actorRole: session.user.role,
+    action: "user.create",
+    entityType: "User",
+    entityId: user.id,
+    after: { email: user.email, role: user.role },
   });
 
   return NextResponse.json(user, { status: 201 });

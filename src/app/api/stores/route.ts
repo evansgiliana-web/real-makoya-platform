@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit";
 import { z } from "zod";
+import { ownerDocumentUrlSchema } from "@/lib/validation";
 
 const storeSchema = z.object({
   name: z.string().min(2),
@@ -28,10 +29,10 @@ const storeSchema = z.object({
     .default([]),
   // POPIA
   ownerConsentGiven: z.boolean(),
-  ownerConsentDocumentUrl: z.string().url().optional().nullable(),
-  municipalRegistrationDocumentUrl: z.string().url().optional().nullable(),
-  ownershipDocumentUrl: z.string().url().optional().nullable(),
-  businessLicenseDocumentUrl: z.string().url().optional().nullable(),
+  ownerConsentDocumentUrl: ownerDocumentUrlSchema,
+  municipalRegistrationDocumentUrl: ownerDocumentUrlSchema,
+  ownershipDocumentUrl: ownerDocumentUrlSchema,
+  businessLicenseDocumentUrl: ownerDocumentUrlSchema,
   // Visit cadence
   visitCadenceDays: z.number().int().min(7).max(365).optional(),
   nextVisitDue: z.string().optional().nullable(),

@@ -6,6 +6,7 @@ import { can } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { passwordSchema, firstIssue } from "@/lib/validation";
 
 const createOrgSchema = z.object({
   name: z.string().min(2),
@@ -13,7 +14,7 @@ const createOrgSchema = z.object({
   brandNames: z.array(z.string().min(1)).min(1, "Add at least one brand"),
   ownerName: z.string().min(2),
   ownerEmail: z.string().email(),
-  ownerPassword: z.string().min(8),
+  ownerPassword: passwordSchema,
 });
 
 export async function GET() {
@@ -46,7 +47,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = createOrgSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: firstIssue(parsed.error), details: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   const existingUser = await prisma.user.findUnique({
