@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import PrintButton from "@/components/PrintButton";
@@ -11,22 +12,11 @@ import VisitDocumentsList, { complianceDocsFromAssessment } from "@/components/V
 import PhotoGallery from "@/components/PhotoGallery";
 import { sortImagesBySlot, slotLabel } from "@/lib/photoSlots";
 
+const REPORT_PAGE_SIZE = 50;
+
 function pct(n: number, d: number) {
   if (!d) return 0;
   return Math.round((n / d) * 100);
-}
-
-function matchesTurnover(
-  value: number | null | undefined,
-  band: string | undefined
-): boolean {
-  if (!band || band === "ALL") return true;
-  if (band === "unknown") return value == null;
-  if (value == null) return false;
-  if (band === "0-20k") return value < 20000;
-  if (band === "20k-50k") return value >= 20000 && value <= 50000;
-  if (band === "50k+") return value > 50000;
-  return true;
 }
 
 export default async function ReportsPage({
@@ -38,6 +28,7 @@ export default async function ReportsPage({
     storeId?: string;
     turnover?: string;
     view?: string;
+    page?: string;
   };
 }) {
   const session = await getServerSession(authOptions);
@@ -78,8 +69,54 @@ export default async function ReportsPage({
         : accessibleBrandIds;
   }
 
+  const scopeWhere: Prisma.AssessmentWhereInput = {
+    status: "REVIEWED",
+    ...(brandIdFilter
+      ? { productLines: { some: { brandId: { in: brandIdFilter } } } }
+      : {}),
+  };
+  const where: Prisma.AssessmentWhereInput = {
+    ...scopeWhere,
+    ...(searchParams.province && searchParams.province !== "ALL"
+      ? { store: { province: searchParams.province } }
+      : {}),
+    ...(searchParams.storeId && searchParams.storeId !== "ALL"
+      ? { storeId: searchParams.storeId }
+      : {}),
+    ...(searchParams.turnover === "unknown"
+      ? { estimatedMonthlyTurnoverZar: null }
+      : searchParams.turnover === "0-20k"
+        ? { estimatedMonthlyTurnoverZar: { lt: 20000 } }
+        : searchParams.turnover === "20k-50k"
+          ? {
+              estimatedMonthlyTurnoverZar: {
+                gte: 20000,
+                lte: 50000,
+              },
+            }
+          : searchParams.turnover === "50k+"
+            ? { estimatedMonthlyTurnoverZar: { gt: 50000 } }
+            : {}),
+  };
+
+  const [totalAssessments, pendingReviewCount, eligibleStores] = await Promise.all([
+    prisma.assessment.count({ where }),
+    isClient ? Promise.resolve(0) : prisma.assessment.count({ where: { status: "SUBMITTED" } }),
+    prisma.store.findMany({
+      where: { assessments: { some: scopeWhere } },
+      select: { id: true, name: true, town: true, province: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(totalAssessments / REPORT_PAGE_SIZE));
+  const requestedPage = Number(searchParams.page);
+  const currentPage =
+    Number.isSafeInteger(requestedPage) && requestedPage > 0
+      ? Math.min(requestedPage, totalPages)
+      : 1;
+
   const assessments = await prisma.assessment.findMany({
-    where: isClient ? { status: "REVIEWED" } : undefined,
+    where,
     include: {
       store: {
         select: {
@@ -102,47 +139,21 @@ export default async function ReportsPage({
         ? { where: { brandId: { in: brandIdFilter } } }
         : true,
     },
-    orderBy: { visitDate: "desc" },
+    orderBy: [{ visitDate: "desc" }, { id: "desc" }],
+    skip: (currentPage - 1) * REPORT_PAGE_SIZE,
+    take: REPORT_PAGE_SIZE,
   });
 
-  const pendingReviewCount = isClient
-    ? 0
-    : await prisma.assessment.count({ where: { status: "SUBMITTED" } });
+  const scoped = assessments;
 
-  let scoped = brandIdFilter
-    ? assessments.filter((a) => a.productLines.length > 0)
-    : assessments;
-
-  // Region / store / turnover filters
-  if (searchParams.province && searchParams.province !== "ALL") {
-    scoped = scoped.filter((a) => a.store.province === searchParams.province);
-  }
-  if (searchParams.storeId && searchParams.storeId !== "ALL") {
-    scoped = scoped.filter((a) => a.storeId === searchParams.storeId);
-  }
-  if (searchParams.turnover && searchParams.turnover !== "ALL") {
-    scoped = scoped.filter((a) =>
-      matchesTurnover(a.estimatedMonthlyTurnoverZar, searchParams.turnover)
-    );
-  }
-
-  const reportScoped = isClient
-    ? scoped
-    : scoped.filter((a) => a.status === "REVIEWED");
-  const metricsSource = isClient
-    ? scoped
-    : reportScoped.length > 0
-      ? reportScoped
-      : scoped;
-
-  const totalStores = new Set(metricsSource.map((a) => a.storeId)).size;
-  const coaCount = metricsSource.filter((a) => a.hasValidCoA).length;
-  const healthPermitCount = metricsSource.filter((a) => a.hasHealthPermit).length;
-  const coaValidPct = pct(coaCount, metricsSource.length);
-  const healthPermitPct = pct(healthPermitCount, metricsSource.length);
+  const totalStores = new Set(scoped.map((a) => a.storeId)).size;
+  const coaCount = scoped.filter((a) => a.hasValidCoA).length;
+  const healthPermitCount = scoped.filter((a) => a.hasHealthPermit).length;
+  const coaValidPct = pct(coaCount, scoped.length);
+  const healthPermitPct = pct(healthPermitCount, scoped.length);
   const authenticPct = pct(
-    metricsSource.filter((a) => a.brandAuthenticityVerified).length,
-    metricsSource.length
+    scoped.filter((a) => a.brandAuthenticityVerified).length,
+    scoped.length
   );
 
   const riskCounts: Record<string, number> = {
@@ -193,21 +204,7 @@ export default async function ReportsPage({
     0
   );
 
-  // Filter dropdown options from full client-scoped set (before region filters)
-  // Re-use assessments after brand filter only for dropdown population
-  const forOptions = brandIdFilter
-    ? assessments.filter((a) => a.productLines.length > 0)
-    : assessments;
-  const optionDir = new Map<string, (typeof forOptions)[number]>();
-  for (const a of forOptions) {
-    if (!optionDir.has(a.storeId)) optionDir.set(a.storeId, a);
-  }
-  const allStoreOptions = Array.from(optionDir.values()).map((a) => ({
-    id: a.store.id,
-    name: a.store.name,
-    town: a.store.town,
-    province: a.store.province,
-  }));
+  const allStoreOptions = eligibleStores;
   const provinces = Array.from(
     new Set(allStoreOptions.map((s) => s.province))
   ).sort();
@@ -273,6 +270,14 @@ export default async function ReportsPage({
   const singleRow = singleStoreId
     ? directoryRows.find((a) => a.storeId === singleStoreId)
     : null;
+  const paginationHref = (page: number) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (value) params.set(key, value);
+    }
+    params.set("page", String(page));
+    return `/dashboard/reports?${params.toString()}`;
+  };
 
   return (
     <>
@@ -305,6 +310,37 @@ export default async function ReportsPage({
         brands={orgBrands}
         orgName={orgName}
       />
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+        <p>
+          Showing reviewed assessments{" "}
+          {totalAssessments === 0 ? 0 : (currentPage - 1) * REPORT_PAGE_SIZE + 1}–
+          {Math.min(currentPage * REPORT_PAGE_SIZE, totalAssessments)} of {totalAssessments}.
+          Metrics below reflect this page.
+        </p>
+        <nav aria-label="Report pages" className="no-print flex items-center gap-2">
+          <Link
+            href={paginationHref(Math.max(1, currentPage - 1))}
+            aria-disabled={currentPage <= 1}
+            className={`btn-secondary text-sm ${currentPage <= 1 ? "pointer-events-none opacity-50" : ""}`}
+          >
+            Previous
+          </Link>
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          <Link
+            href={paginationHref(Math.min(totalPages, currentPage + 1))}
+            aria-disabled={currentPage >= totalPages}
+            className={`btn-secondary text-sm ${currentPage >= totalPages ? "pointer-events-none opacity-50" : ""}`}
+          >
+            Next
+          </Link>
+        </nav>
+        <p className="no-print basis-full text-xs">
+          The CSV export includes all matching reviewed assessments.
+        </p>
+      </div>
 
       {/* ── Single-store dossier ── */}
       {singleRow && (

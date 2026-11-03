@@ -7,6 +7,11 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "postinstall": "prisma generate",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test": "npm run test:routes && npm run test:policies && npm run test:documents",
+    "test:routes": "tsx --tsconfig tests/tsconfig.harness.json tests/routes.test.ts",
+    "test:policies": "tsx tests/policies.test.ts",
+    "test:documents": "tsx tests/documents.test.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio"

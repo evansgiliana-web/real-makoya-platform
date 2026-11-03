@@ -57,6 +57,13 @@ npm run db:seed             # creates the first Super Admin login
 npm run dev
 ```
 
+Run the app type check and automated regression tests with:
+
+```bash
+npm run typecheck
+npm test
+```
+
 Open http://localhost:3000 and log in with the email/password printed by the
 seed script (from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` in `.env`).
 

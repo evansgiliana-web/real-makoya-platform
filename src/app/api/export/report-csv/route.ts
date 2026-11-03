@@ -2,16 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-function matchesTurnover(value: number | null | undefined, band: string | null): boolean {
-  if (!band || band === "ALL") return true;
-  if (band === "unknown") return value == null;
-  if (value == null) return false;
-  if (band === "0-20k") return value < 20000;
-  if (band === "20k-50k") return value >= 20000 && value <= 50000;
-  if (band === "50k+") return value > 50000;
-  return true;
-}
+import type { Prisma } from "@prisma/client";
 
 function csvEscape(v: string | number | null | undefined): string {
   if (v == null) return "";
@@ -40,18 +31,46 @@ export async function GET(req: NextRequest) {
       where: { userId: session.user.id },
       include: { organization: { include: { brands: true } } },
     });
+
     if (!membership) {
       return NextResponse.json({ error: "No organization membership" }, { status: 403 });
     }
+
     const accessible = membership.allBrandsAccess
       ? membership.organization.brands.map((b) => b.id)
       : membership.brandIds;
+
     brandIdFilter =
       brand && accessible.includes(brand) ? [brand] : accessible;
   }
 
+  const where: Prisma.AssessmentWhereInput = {
+    status: "REVIEWED",
+    ...(brandIdFilter
+      ? { productLines: { some: { brandId: { in: brandIdFilter } } } }
+      : {}),
+    ...(province && province !== "ALL"
+      ? { store: { province } }
+      : {}),
+    ...(storeId && storeId !== "ALL" ? { storeId } : {}),
+    ...(turnover === "unknown"
+      ? { estimatedMonthlyTurnoverZar: null }
+      : turnover === "0-20k"
+        ? { estimatedMonthlyTurnoverZar: { lt: 20000 } }
+        : turnover === "20k-50k"
+          ? {
+              estimatedMonthlyTurnoverZar: {
+                gte: 20000,
+                lte: 50000,
+              },
+            }
+          : turnover === "50k+"
+            ? { estimatedMonthlyTurnoverZar: { gt: 50000 } }
+            : {}),
+  };
+
   const assessments = await prisma.assessment.findMany({
-    where: isClient ? { status: "REVIEWED" } : undefined,
+    where,
     include: {
       store: {
         select: { id: true, name: true, town: true, province: true },
@@ -62,22 +81,6 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { visitDate: "desc" },
   });
-
-  let scoped = brandIdFilter
-    ? assessments.filter((a) => a.productLines.length > 0)
-    : assessments;
-
-  if (province && province !== "ALL") {
-    scoped = scoped.filter((a) => a.store.province === province);
-  }
-  if (storeId && storeId !== "ALL") {
-    scoped = scoped.filter((a) => a.storeId === storeId);
-  }
-  if (turnover && turnover !== "ALL") {
-    scoped = scoped.filter((a) =>
-      matchesTurnover(a.estimatedMonthlyTurnoverZar, turnover)
-    );
-  }
 
   const includeNotes = !isClient;
   const headers = [
@@ -92,16 +95,18 @@ export async function GET(req: NextRequest) {
     "UnitPriceZar",
     "LineValueZar",
   ];
+
   if (includeNotes) headers.push("Notes");
 
   const lines = [headers.join(",")];
 
-  for (const a of scoped) {
+  for (const a of assessments) {
     for (const p of a.productLines) {
       const units = p.estimatedMonthlyUnits;
       const price = p.estimatedUnitPriceZar;
       const line =
         units != null && price != null ? Math.round(units * price) : "";
+
       const row = [
         csvEscape(a.store.name),
         csvEscape(a.store.town),
@@ -114,6 +119,7 @@ export async function GET(req: NextRequest) {
         csvEscape(price),
         csvEscape(line),
       ];
+
       if (includeNotes) row.push(csvEscape(p.notes));
       lines.push(row.join(","));
     }

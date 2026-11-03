@@ -29,6 +29,7 @@ export default function ReportFilters({
     else params.set(key, value);
     // Changing province clears store if store not in province — parent filters; optional clear store
     if (key === "province") params.delete("storeId");
+    params.delete("page");
     router.push(`${pathname}?${params.toString()}`);
   }
 

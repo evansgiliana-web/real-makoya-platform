@@ -199,27 +199,32 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   // Replace product lines if provided
-  if (productLines) {
-    const brandIdByName = await matchBrandIds(productLines.map((p) => p.brand));
-    await prisma.productLine.deleteMany({ where: { assessmentId: params.id } });
-    await prisma.productLine.createMany({
-      data: productLines.map((p) => ({
-        assessmentId: params.id,
-        category: p.category,
-        brand: p.brand,
-        brandId: brandIdByName[p.brand.trim()] ?? null,
-        rank: p.rank ?? null,
-        estimatedMonthlyUnits: p.estimatedMonthlyUnits ?? null,
-        estimatedUnitPriceZar: p.estimatedUnitPriceZar ?? null,
-        notes: p.notes,
-      })),
-    });
-  }
+  const brandIdByName = productLines
+    ? await matchBrandIds(productLines.map((p) => p.brand))
+    : null;
 
-  const assessment = await prisma.assessment.update({
-    where: { id: params.id },
-    data,
-    include: { store: true, agent: { select: { name: true } } },
+  const assessment = await prisma.$transaction(async (tx) => {
+    if (productLines) {
+      await tx.productLine.deleteMany({ where: { assessmentId: params.id } });
+      await tx.productLine.createMany({
+        data: productLines.map((p) => ({
+          assessmentId: params.id,
+          category: p.category,
+          brand: p.brand,
+          brandId: brandIdByName?.[p.brand.trim()] ?? null,
+          rank: p.rank ?? null,
+          estimatedMonthlyUnits: p.estimatedMonthlyUnits ?? null,
+          estimatedUnitPriceZar: p.estimatedUnitPriceZar ?? null,
+          notes: p.notes,
+        })),
+      });
+    }
+
+    return tx.assessment.update({
+      where: { id: params.id },
+      data,
+      include: { store: true, agent: { select: { name: true } } },
+    });
   });
 
   const TRACKED_FIELDS = [
