@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import TopNav from "@/components/TopNav";
 
 const contactHref =
   "mailto:admin@realmakoya.com?subject=Real%20Makoya%20enquiry";
@@ -29,45 +32,55 @@ const features = [
   "Agency-reviewed reports for authorized partners",
 ];
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+
   return (
     <main className="min-h-screen bg-[#f7f8f5] text-brand-900">
-      <header className="border-b border-brand-100 bg-white/80">
-        <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 md:px-8">
-          <Link
-            href="/"
-            className="flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
-            aria-label="Real Makoya overview"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-500 text-sm font-extrabold text-brand-900">
-              RM
-            </span>
-            <span>
-              <span className="block text-base font-bold tracking-tight">REAL MAKOYA</span>
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">
-                Retail intelligence
+      {session ? (
+        <TopNav
+          role={session.user.role}
+          name={session.user.name || ""}
+          email={session.user.email || ""}
+        />
+      ) : (
+        <header className="border-b border-brand-100 bg-white/80">
+          <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 md:px-8">
+            <Link
+              href="/"
+              className="flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
+              aria-label="Real Makoya overview"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-500 text-sm font-extrabold text-brand-900">
+                RM
               </span>
-            </span>
-          </Link>
-          <nav aria-label="Main navigation" className="flex items-center gap-3 sm:gap-6">
-            <a
-              href="#platform"
-              className="hidden text-sm font-medium text-gray-600 hover:text-brand-900 sm:inline"
-            >
-              Platform
-            </a>
-            <a
-              href={contactHref}
-              className="hidden text-sm font-medium text-gray-600 hover:text-brand-900 sm:inline"
-            >
-              Contact
-            </a>
-            <Link href="/login" className="btn-primary">
-              Sign in
+              <span>
+                <span className="block text-base font-bold tracking-tight">REAL MAKOYA</span>
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">
+                  Retail intelligence
+                </span>
+              </span>
             </Link>
-          </nav>
-        </div>
-      </header>
+            <nav aria-label="Main navigation" className="flex items-center gap-3 sm:gap-6">
+              <a
+                href="#platform"
+                className="hidden text-sm font-medium text-gray-600 hover:text-brand-900 sm:inline"
+              >
+                Platform
+              </a>
+              <a
+                href={contactHref}
+                className="hidden text-sm font-medium text-gray-600 hover:text-brand-900 sm:inline"
+              >
+                Contact
+              </a>
+              <Link href="/login" className="btn-primary">
+                Sign in
+              </Link>
+            </nav>
+          </div>
+        </header>
+      )}
 
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_75%_35%,rgba(201,138,44,0.13),transparent_38%),linear-gradient(115deg,#f7f8f5_0%,#f7f8f5_55%,#edf2ed_100%)]" />
