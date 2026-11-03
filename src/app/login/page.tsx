@@ -2,6 +2,7 @@
 
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState, FormEvent } from "react";
 
 export default function LoginPage() {
@@ -33,10 +34,12 @@ export default function LoginPage() {
     <main className="min-h-screen flex items-center justify-center bg-brand-900 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="mx-auto h-12 w-12 rounded-xl bg-accent-500 flex items-center justify-center text-brand-900 font-bold text-xl mb-3">
-            RM
-          </div>
-          <h1 className="text-white text-xl font-semibold">Real Makoya Agency</h1>
+          <Link href="/" className="inline-flex flex-col items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500">
+            <span className="mx-auto h-12 w-12 rounded-xl bg-accent-500 flex items-center justify-center text-brand-900 font-bold text-xl mb-3">
+              RM
+            </span>
+            <span className="text-white text-xl font-semibold">Real Makoya Agency</span>
+          </Link>
           <p className="text-brand-100 text-sm mt-1">Retail Intelligence Platform</p>
         </div>
 

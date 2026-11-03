@@ -35,8 +35,9 @@ export default function TopNav({ role, name, email }: Props) {
     <header className="no-print sticky top-0 z-10 bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-6 md:px-8 h-16 flex items-center gap-6">
         <Link
-          href={role === "CLIENT" ? "/dashboard/reports" : "/dashboard"}
+          href="/"
           className="flex items-center gap-2 flex-shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          aria-label="Real Makoya overview"
         >
           <div className="h-8 w-8 rounded-lg bg-accent-500 flex items-center justify-center text-brand-900 font-bold text-sm">
             RM
