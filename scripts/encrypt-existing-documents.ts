@@ -30,7 +30,8 @@ async function main() {
 
   console.log(apply ? "APPLY MODE: changing data." : "DRY RUN: nothing will be changed. Add --apply to do the work.");
 
-  const stores = await prisma.store.findMany({
+  const stores = await prisma.store.findMany({  
+    
     where: {
       OR: [
         { ownerConsentDocumentUrl: { not: null } },
@@ -46,7 +47,9 @@ async function main() {
       ownershipDocumentUrl: true,
       businessLicenseDocumentUrl: true,
     },
-  });
+  }
+
+);
 
   let done = 0;
   let skipped = 0;
